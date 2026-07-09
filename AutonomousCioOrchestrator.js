@@ -1,7 +1,7 @@
 /************************************************************
  * AutonomousCioOrchestrator.gs
- * Wave 1D.1 — Autonomous CIO Orchestrator
- * Uses ModuleRegistry.gs
+ * Wave 2.2 — Autonomous CIO Orchestrator
+ * Includes Market Data + Portfolio Valuation
  ************************************************************/
 
 function foRunAutonomousCioOrchestrator() {
@@ -17,6 +17,8 @@ function foRunAutonomousCioOrchestrator() {
     steps.push(foRunOrchestratorStep_(runId, 'Platform Health Check', foGetModule('HEALTH')));
     steps.push(foRunOrchestratorStep_(runId, 'Platform Integrity Check', foGetModule('INTEGRITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Data Validation', foGetModule('VALIDATION')));
+    steps.push(foRunOrchestratorStep_(runId, 'Market Data Refresh', foGetModule('MARKET_DATA')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Valuation', foGetModule('VALUATION')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
@@ -66,7 +68,6 @@ function foRunOrchestratorStep_(runId, stepName, stepFunction) {
     }
 
     const result = stepFunction();
-
     const completedAt = new Date();
 
     foInfo_(

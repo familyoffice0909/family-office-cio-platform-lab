@@ -2,6 +2,7 @@
  * Menu.gs
  * Family Office CIO Platform
  * Enterprise Menu Structure
+ * Wave 2.2
  ************************************************************/
 
 function onOpen() {
@@ -17,6 +18,9 @@ function onOpen() {
     .addItem('Seed Market Symbol Registry', 'foSeedMarketSymbolRegistry')
     .addItem('Run Market Data Refresh', 'foRunMarketDataRefresh')
     .addItem('Market Data Smoke Test', 'foRunMarketDataSmokeTest')
+    .addSeparator()
+    .addItem('Run Portfolio Valuation', 'foRunPortfolioValuation')
+    .addItem('Portfolio Valuation Smoke Test', 'foRunPortfolioValuationSmokeTest')
     .addSeparator()
     .addItem('Recommendation Engine Smoke Test', 'foRunRecommendationEngineSmokeTest')
     .addItem('Append Sample Recommendation', 'foAppendSampleRecommendation')
