@@ -1,6 +1,7 @@
 /************************************************************
  * AutonomousCioOrchestrator.gs
- * Wave 1D — Autonomous CIO Orchestrator
+ * Wave 1D.1 — Autonomous CIO Orchestrator
+ * Uses ModuleRegistry.gs
  ************************************************************/
 
 function foRunAutonomousCioOrchestrator() {
@@ -13,14 +14,14 @@ function foRunAutonomousCioOrchestrator() {
 
     const steps = [];
 
-    steps.push(foRunOrchestratorStep_(runId, 'Platform Health Check', foRunPlatformHealthCheck));
-    steps.push(foRunOrchestratorStep_(runId, 'Platform Integrity Check', foRunPlatformIntegrityCheck));
-    steps.push(foRunOrchestratorStep_(runId, 'Data Validation', foRunDataValidation));
-    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foBuildPortfolioSnapshot));
-    steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foRunMarketIntelligence));
-    steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foRunCioDecisionEngine));
-    steps.push(foRunOrchestratorStep_(runId, 'Executive Report', foRunExecutiveReportEngine));
-    steps.push(foRunOrchestratorStep_(runId, 'Executive Dashboard', foRunExecutiveDashboardEngine));
+    steps.push(foRunOrchestratorStep_(runId, 'Platform Health Check', foGetModule('HEALTH')));
+    steps.push(foRunOrchestratorStep_(runId, 'Platform Integrity Check', foGetModule('INTEGRITY')));
+    steps.push(foRunOrchestratorStep_(runId, 'Data Validation', foGetModule('VALIDATION')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
+    steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
+    steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
+    steps.push(foRunOrchestratorStep_(runId, 'Executive Report', foGetModule('REPORT')));
+    steps.push(foRunOrchestratorStep_(runId, 'Executive Dashboard', foGetModule('DASHBOARD')));
 
     const summary = foBuildOrchestratorSummary_(steps, startedAt);
 
@@ -59,6 +60,10 @@ function foRunOrchestratorStep_(runId, stepName, stepFunction) {
       'Step Start',
       runId + ' | ' + stepName + ' started.'
     );
+
+    if (typeof stepFunction !== 'function') {
+      throw new Error('Registered module is not executable: ' + stepName);
+    }
 
     const result = stepFunction();
 
