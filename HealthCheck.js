@@ -34,12 +34,12 @@ function foRunPlatformHealthCheck() {
     ]);
 
     if (healthSheet.getLastRow() > 1) {
-      healthSheet
-        .getRange(2, 1, healthSheet.getLastRow() - 1, 6)
-        .clearContent();
+      healthSheet.getRange(2, 1, healthSheet.getLastRow() - 1, 6).clearContent();
     }
 
-    healthSheet.getRange(2, 1, rows.length, 6).setValues(rows);
+    if (rows.length > 0) {
+      healthSheet.getRange(2, 1, rows.length, 6).setValues(rows);
+    }
 
     const result = failures === 0 ? 'PASS' : 'FAIL';
 
