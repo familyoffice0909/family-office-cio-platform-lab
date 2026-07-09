@@ -1,6 +1,6 @@
 /************************************************************
  * PortfolioValuationEngine.gs
- * Wave 2.2 — Live Portfolio Valuation Engine
+ * Wave 2.2.1 — Safe Portfolio Valuation Fix
  ************************************************************/
 
 function foRunPortfolioValuation() {
@@ -17,21 +17,12 @@ function foRunPortfolioValuation() {
     }
 
     const values = portfolioSheet.getDataRange().getValues();
-
-    if (values.length < 2) {
-      throw new Error('Portfolio Master has no holdings.');
-    }
-
     const headers = values[0].map(String);
 
     const result = foCalculatePortfolioValuation_(portfolioSheet, values, headers);
     foWritePortfolioValuationSummary_(dashboard, result);
 
-    foInfo_(
-      module,
-      'Complete',
-      'Portfolio valuation completed. Total value: ' + result.totalMarketValue
-    );
+    foInfo_(module, 'Complete', 'Portfolio valuation completed.');
 
     return result;
 
@@ -49,36 +40,23 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
   const costBasisIndex = headers.indexOf('Cost Basis');
   const accountIndex = headers.indexOf('Account');
 
-  if (tickerIndex < 0 || quantityIndex < 0 || priceIndex < 0 || marketValueIndex < 0) {
-    throw new Error('Portfolio Master requires Ticker, Quantity, Current Price, and Market Value columns.');
-  }
-
   let totalMarketValue = 0;
   let totalCostBasis = 0;
   let valuedPositions = 0;
   let missingPriceCount = 0;
-
-  const positionRows = [];
 
   for (let r = 1; r < values.length; r++) {
     const ticker = String(values[r][tickerIndex] || '').trim().toUpperCase();
     if (!ticker) continue;
 
     const account =
-      accountIndex >= 0
-        ? String(values[r][accountIndex] || '').trim().toUpperCase()
-        : '';
+      accountIndex >= 0 ? String(values[r][accountIndex] || '').trim().toUpperCase() : '';
 
-    const quantity = Number(values[r][quantityIndex] || 0);
-    const price = Number(values[r][priceIndex] || 0);
-    const costBasis =
-      costBasisIndex >= 0
-        ? Number(values[r][costBasisIndex] || 0)
-        : 0;
+    const quantity = foSafeNumber_(values[r][quantityIndex]);
+    const price = foSafeNumber_(values[r][priceIndex]);
+    const costBasis = costBasisIndex >= 0 ? foSafeNumber_(values[r][costBasisIndex]) : 0;
 
-    if (foIsExcludedValuationRow_(account, ticker, quantity, price)) {
-      continue;
-    }
+    if (foIsExcludedValuationRow_(account, ticker, quantity, price)) continue;
 
     if (quantity <= 0 || price <= 0) {
       missingPriceCount++;
@@ -89,26 +67,14 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
 
     portfolioSheet.getRange(r + 1, marketValueIndex + 1).setValue(marketValue);
 
-    totalMarketValue += marketValue;
-    totalCostBasis += costBasis;
+    totalMarketValue += foSafeNumber_(marketValue);
+    totalCostBasis += foSafeNumber_(costBasis);
     valuedPositions++;
-
-    positionRows.push({
-      rowNumber: r + 1,
-      ticker: ticker,
-      account: account,
-      quantity: quantity,
-      currentPrice: price,
-      marketValue: marketValue,
-      costBasis: costBasis
-    });
   }
 
   const unrealizedGainLoss = totalMarketValue - totalCostBasis;
   const unrealizedGainLossPct =
-    totalCostBasis > 0
-      ? unrealizedGainLoss / totalCostBasis
-      : 0;
+    totalCostBasis > 0 ? unrealizedGainLoss / totalCostBasis : 0;
 
   return {
     status: 'SUCCESS',
@@ -117,9 +83,22 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
     unrealizedGainLoss: unrealizedGainLoss,
     unrealizedGainLossPct: unrealizedGainLossPct,
     valuedPositions: valuedPositions,
-    missingPriceCount: missingPriceCount,
-    positionRows: positionRows
+    missingPriceCount: missingPriceCount
   };
+}
+
+function foSafeNumber_(value) {
+  if (value === null || value === undefined || value === '') return 0;
+
+  const cleaned = String(value)
+    .replace(/\$/g, '')
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .trim();
+
+  const number = Number(cleaned);
+
+  return isNaN(number) ? 0 : number;
 }
 
 function foIsExcludedValuationRow_(account, ticker, quantity, price) {
