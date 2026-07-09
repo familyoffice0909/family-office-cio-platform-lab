@@ -14,6 +14,7 @@ function onOpen() {
     .addItem('Run Data Validation', 'foRunDataValidation');
 
   const investmentsMenu = ui.createMenu('Investments')
+    .addItem('Seed Market Symbol Registry', 'foSeedMarketSymbolRegistry')
     .addItem('Run Market Data Refresh', 'foRunMarketDataRefresh')
     .addItem('Market Data Smoke Test', 'foRunMarketDataSmokeTest')
     .addSeparator()

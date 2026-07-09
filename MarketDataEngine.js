@@ -1,6 +1,7 @@
 /************************************************************
  * MarketDataEngine.gs
- * Wave 2.0 — Live Market Data Integration
+ * Wave 2.1 — Live Market Data Integration
+ * Uses Market Symbol Registry
  ************************************************************/
 
 function foRunMarketDataRefresh() {
@@ -23,7 +24,7 @@ function foRunMarketDataRefresh() {
     }
 
     const headers = values[0].map(String);
-    const tickers = foExtractPortfolioTickers_(values, headers);
+    const tickers = foExtractRegisteredPortfolioTickers_(values, headers);
 
     const marketSheet = foEnsureSheet_(dashboard, 'Market Data Cache', [
       'Timestamp',
@@ -39,6 +40,7 @@ function foRunMarketDataRefresh() {
     ]);
 
     marketSheet.clearContents();
+
     marketSheet.getRange(1, 1, 1, 10).setValues([[
       'Timestamp',
       'Ticker',
@@ -55,18 +57,17 @@ function foRunMarketDataRefresh() {
     const rows = [];
 
     tickers.forEach(function(ticker) {
-      const symbol = foMapGoogleFinanceSymbol_(ticker);
-      const currency = foInferMarketCurrency_(ticker);
+      const resolved = foResolveMarketSymbol_(ticker);
 
       rows.push([
         new Date(),
-        ticker,
-        symbol,
+        resolved.ticker,
+        resolved.providerSymbol,
         'GOOGLEFINANCE',
         '',
-        currency,
-        'PENDING',
-        'Formula-based quote provider.',
+        resolved.currency,
+        resolved.status === 'ACTIVE' ? 'PENDING' : resolved.status,
+        resolved.notes,
         FO_CONFIG.PLATFORM_VERSION,
         FO_CONFIG.BASELINE
       ]);
@@ -77,16 +78,19 @@ function foRunMarketDataRefresh() {
 
       for (let i = 0; i < rows.length; i++) {
         const formulaRow = i + 2;
-        const symbol = rows[i][2];
+        const providerSymbol = rows[i][2];
+        const status = rows[i][6];
 
-        marketSheet
-          .getRange(formulaRow, 5)
-          .setFormula('=IFERROR(GOOGLEFINANCE("' + symbol + '","price"),"")');
+        if (providerSymbol && status === 'PENDING') {
+          marketSheet
+            .getRange(formulaRow, 5)
+            .setFormula('=IFERROR(GOOGLEFINANCE("' + providerSymbol + '","price"),"")');
+        }
       }
     }
 
     SpreadsheetApp.flush();
-    Utilities.sleep(2500);
+    Utilities.sleep(3000);
 
     const priceMap = foReadMarketDataCache_(marketSheet);
     const updateResult = foApplyMarketDataToPortfolioMaster_(portfolioSheet, priceMap);
@@ -110,9 +114,10 @@ function foRunMarketDataRefresh() {
   }
 }
 
-function foExtractPortfolioTickers_(values, headers) {
+function foExtractRegisteredPortfolioTickers_(values, headers) {
   const tickerIndex = headers.indexOf('Ticker');
   const quantityIndex = headers.indexOf('Quantity');
+  const marketValueIndex = headers.indexOf('Market Value');
   const accountIndex = headers.indexOf('Account');
 
   if (tickerIndex < 0) {
@@ -126,23 +131,28 @@ function foExtractPortfolioTickers_(values, headers) {
     const ticker = String(values[r][tickerIndex] || '').trim().toUpperCase();
     if (!ticker) continue;
 
-    const quantity =
-      quantityIndex >= 0
-        ? Number(values[r][quantityIndex] || 0)
-        : 0;
-
     const account =
       accountIndex >= 0
         ? String(values[r][accountIndex] || '').trim().toUpperCase()
         : '';
 
-    if (
-      account === 'REFERENCE' ||
-      account === 'LIBRARY' ||
-      account === 'WATCHLIST' ||
-      account === 'WATCH LIST' ||
-      account === 'TEMPLATE'
-    ) {
+    const quantity =
+      quantityIndex >= 0
+        ? Number(values[r][quantityIndex] || 0)
+        : 0;
+
+    const marketValue =
+      marketValueIndex >= 0
+        ? Number(values[r][marketValueIndex] || 0)
+        : 0;
+
+    if (foIsExcludedMarketDataRow_(account, ticker, quantity, marketValue)) {
+      continue;
+    }
+
+    const resolved = foResolveMarketSymbol_(ticker);
+
+    if (resolved.status !== 'ACTIVE') {
       continue;
     }
 
@@ -155,37 +165,24 @@ function foExtractPortfolioTickers_(values, headers) {
   return tickers;
 }
 
-function foMapGoogleFinanceSymbol_(ticker) {
-  const t = String(ticker || '').trim().toUpperCase();
+function foIsExcludedMarketDataRow_(account, ticker, quantity, marketValue) {
+  const excludedAccounts = [
+    '',
+    'N/A',
+    'NA',
+    'PENDING',
+    'REFERENCE',
+    'LIBRARY',
+    'WATCHLIST',
+    'WATCH LIST',
+    'TEMPLATE'
+  ];
 
-  const map = {
-    QQC: 'TSE:QQC',
-    QNC: 'TSE:QNC',
-    BNS: 'TSE:BNS',
-    TD: 'TSE:TD',
-    ABX: 'TSE:ABX',
-    ONE: 'TSE:ONE',
-    QBTS: 'NYSE:QBTS',
-    RGTI: 'NASDAQ:RGTI',
-    MU: 'NASDAQ:MU',
-    AVGO: 'NASDAQ:AVGO',
-    QCOM: 'NASDAQ:QCOM',
-    NVDA: 'NASDAQ:NVDA',
-    META: 'NASDAQ:META',
-    PLTR: 'NASDAQ:PLTR'
-  };
-
-  return map[t] || t;
-}
-
-function foInferMarketCurrency_(ticker) {
-  const t = String(ticker || '').trim().toUpperCase();
-
-  if (['QBTS', 'RGTI', 'MU', 'AVGO', 'QCOM', 'NVDA', 'META', 'PLTR'].indexOf(t) >= 0) {
-    return 'USD';
+  if (excludedAccounts.indexOf(account) >= 0 && quantity <= 0 && marketValue <= 0) {
+    return true;
   }
 
-  return 'CAD';
+  return false;
 }
 
 function foReadMarketDataCache_(marketSheet) {
@@ -266,6 +263,8 @@ function foRunMarketDataSmokeTest() {
 
   try {
     foInfo_(module, 'Start', 'Market Data smoke test started.');
+
+    foSeedMarketSymbolRegistry();
 
     const result = foRunMarketDataRefresh();
 
