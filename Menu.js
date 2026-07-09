@@ -14,6 +14,9 @@ function onOpen() {
     .addItem('Run Data Validation', 'foRunDataValidation');
 
   const investmentsMenu = ui.createMenu('Investments')
+    .addItem('Run Market Data Refresh', 'foRunMarketDataRefresh')
+    .addItem('Market Data Smoke Test', 'foRunMarketDataSmokeTest')
+    .addSeparator()
     .addItem('Recommendation Engine Smoke Test', 'foRunRecommendationEngineSmokeTest')
     .addItem('Append Sample Recommendation', 'foAppendSampleRecommendation')
     .addSeparator()
