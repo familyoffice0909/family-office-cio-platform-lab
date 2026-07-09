@@ -1,6 +1,6 @@
 /************************************************************
  * AutonomousCioOrchestrator.gs
- * Wave 2.3.2
+ * Wave 2.3.3
  ************************************************************/
 
 function foRunAutonomousCioOrchestrator() {
@@ -21,6 +21,7 @@ function foRunAutonomousCioOrchestrator() {
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Data Integrity', foGetModule('PORTFOLIO_DATA_INTEGRITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Performance', foGetModule('PERFORMANCE')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Exposure Attribution', foGetModule('EXPOSURE')));
+    steps.push(foRunOrchestratorStep_(runId, 'IBKR Reconciliation', foGetModule('IBKR_RECONCILIATION')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
@@ -30,7 +31,11 @@ function foRunAutonomousCioOrchestrator() {
     const summary = foBuildOrchestratorSummary_(steps, startedAt);
     foWriteOrchestratorRunLog_(runId, startedAt, summary, steps);
 
-    foInfo_(module, 'Complete', 'Autonomous CIO orchestration completed. Run ID: ' + runId + ' | Status: ' + summary.status);
+    foInfo_(
+      module,
+      'Complete',
+      'Autonomous CIO orchestration completed. Run ID: ' + runId + ' | Status: ' + summary.status
+    );
 
     return {
       status: summary.status,
