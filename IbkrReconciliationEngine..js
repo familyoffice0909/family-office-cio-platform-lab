@@ -1,6 +1,6 @@
 /************************************************************
  * IbkrReconciliationEngine.gs
- * Wave 2.3.3.1 — Consolidated IBKR Reconciliation Report
+ * Wave 2.3.3.2 — IBKR Reconciliation Data Quality Scoring
  ************************************************************/
 
 function foSeedIbkrPositionSnapshot() {
@@ -84,7 +84,6 @@ function foRunIbkrReconciliation() {
     const portfolioMap = foBuildIbkrPortfolioMap_(portfolioValues, portfolioHeaders);
     const ibkrMap = foBuildIbkrSnapshotMap_(ibkrValues, ibkrHeaders);
 
-    const rows = [];
     const tickers = {};
 
     Object.keys(portfolioMap).forEach(function(ticker) {
@@ -95,14 +94,12 @@ function foRunIbkrReconciliation() {
       tickers[ticker] = true;
     });
 
-    Object.keys(tickers).sort().forEach(function(ticker) {
-      const local = portfolioMap[ticker];
-      const broker = ibkrMap[ticker];
-
-      rows.push(foBuildConsolidatedIbkrReconRow_(ticker, local, broker));
+    const rows = Object.keys(tickers).sort().map(function(ticker) {
+      return foBuildConsolidatedIbkrReconRow_(ticker, portfolioMap[ticker], ibkrMap[ticker]);
     });
 
     foWriteIbkrReconciliationReport_(dashboard, rows);
+    foWriteIbkrReconciliationSummary_(dashboard, rows);
 
     foInfo_(module, 'Complete', 'IBKR reconciliation completed. Tickers reconciled: ' + rows.length);
 
@@ -118,107 +115,93 @@ function foRunIbkrReconciliation() {
 }
 
 function foBuildConsolidatedIbkrReconRow_(ticker, local, broker) {
+  const now = new Date();
+
   if (!local && broker) {
     return [
-      new Date(),
-      ticker,
-      'MISSING_IN_PORTFOLIO',
-      'HIGH',
-      '',
-      broker.quantity,
-      '',
-      broker.marketPrice,
-      '',
-      broker.averagePrice,
-      '',
-      broker.marketValue,
-      '',
-      broker.unrealizedPnl,
-      broker.dailyPnl,
-      '❌',
-      '❌',
-      '❌',
-      '❌',
+      now, ticker, 'MISSING_IN_PORTFOLIO', 'HIGH', 25,
+      '', broker.quantity, '', broker.marketPrice, '', broker.averagePrice, '', broker.marketValue,
+      '', broker.unrealizedPnl, broker.dailyPnl,
+      '❌', '❌', '❌', '❌',
       'IBKR position exists but Portfolio Master has no matching Interactive Brokers row.',
-      FO_CONFIG.PLATFORM_VERSION,
-      FO_CONFIG.BASELINE
+      FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE
     ];
   }
 
   if (local && !broker) {
     return [
-      new Date(),
-      ticker,
-      'MISSING_IN_IBKR',
-      'HIGH',
-      local.quantity,
-      '',
-      local.currentPrice,
-      '',
-      local.averageCost,
-      '',
-      local.marketValue,
-      '',
-      local.costBasis,
-      '',
-      '',
-      '❌',
-      '❌',
-      '❌',
-      '❌',
+      now, ticker, 'MISSING_IN_IBKR', 'HIGH', 25,
+      local.quantity, '', local.currentPrice, '', local.averageCost, '', local.marketValue, '',
+      local.costBasis, '', '',
+      '❌', '❌', '❌', '❌',
       'Portfolio Master shows Interactive Brokers position but IBKR snapshot does not.',
-      FO_CONFIG.PLATFORM_VERSION,
-      FO_CONFIG.BASELINE
+      FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE
     ];
   }
 
-  const quantityDiff = broker.quantity - local.quantity;
-  const priceDiff = broker.marketPrice - local.currentPrice;
-  const avgCostDiff = broker.averagePrice - local.averageCost;
-  const marketValueDiff = broker.marketValue - local.marketValue;
+  const quantityMatch = Math.abs(broker.quantity - local.quantity) < 0.0001;
+  const priceMatch = Math.abs(broker.marketPrice - local.currentPrice) <= 0.25;
+  const marketValueMatch = Math.abs(broker.marketValue - local.marketValue) <= 5;
 
-  const quantityMatch = Math.abs(quantityDiff) < 0.0001;
-  const priceMatch = Math.abs(priceDiff) <= 0.25;
-  const avgCostMatch = Math.abs(avgCostDiff) <= 0.05;
-  const marketValueMatch = Math.abs(marketValueDiff) <= 5;
+  const localAvgCostMissing = local.averageCost <= 0;
+  const avgCostMatch = !localAvgCostMissing && Math.abs(broker.averagePrice - local.averageCost) <= 0.05;
 
-  let status = 'MATCH';
-  let severity = 'INFO';
+  let score = 100;
   const notes = [];
 
   if (!quantityMatch) {
-    status = 'MISMATCH';
-    severity = 'HIGH';
+    score -= 35;
     notes.push('Quantity mismatch.');
   }
 
   if (!priceMatch) {
-    status = status === 'MATCH' ? 'PRICE_STALE_OR_MISMATCH' : status;
-    severity = severity === 'HIGH' ? 'HIGH' : 'LOW';
-    notes.push('Price differs beyond tolerance.');
+    score -= 10;
+    notes.push('Price differs beyond tolerance; may be timing/provider delay.');
   }
 
-  if (!avgCostMatch) {
-    status = status === 'MATCH' ? 'AVG_COST_MISMATCH' : status;
-    severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+  if (localAvgCostMissing) {
+    score -= 15;
+    notes.push('Local average cost missing; broker average cost available.');
+  } else if (!avgCostMatch) {
+    score -= 20;
     notes.push('Average cost mismatch.');
   }
 
   if (!marketValueMatch) {
-    status = status === 'MATCH' ? 'MARKET_VALUE_MISMATCH' : status;
-    severity = severity === 'HIGH' ? 'HIGH' : 'MEDIUM';
+    score -= 15;
     notes.push('Market value mismatch.');
   }
 
   if (notes.length === 0) {
-    notes.push('All core IBKR reconciliation checks passed.');
+    notes.push('All IBKR reconciliation checks passed.');
+  }
+
+  let status = 'MATCH';
+  let severity = 'INFO';
+
+  if (!quantityMatch) {
+    status = 'QUANTITY_MISMATCH';
+    severity = 'HIGH';
+  } else if (localAvgCostMissing) {
+    status = 'LOCAL_AVG_COST_MISSING';
+    severity = 'MEDIUM';
+  } else if (!avgCostMatch) {
+    status = 'AVG_COST_MISMATCH';
+    severity = 'MEDIUM';
+  } else if (!marketValueMatch) {
+    status = 'MARKET_VALUE_MISMATCH';
+    severity = 'MEDIUM';
+  } else if (!priceMatch) {
+    status = 'PRICE_STALE_OR_MISMATCH';
+    severity = 'LOW';
   }
 
   return [
-    new Date(),
+    now,
     ticker,
     status,
     severity,
+    Math.max(score, 0),
     local.quantity,
     broker.quantity,
     local.currentPrice,
@@ -232,7 +215,7 @@ function foBuildConsolidatedIbkrReconRow_(ticker, local, broker) {
     broker.dailyPnl,
     quantityMatch ? '✅' : '❌',
     priceMatch ? '✅' : '❌',
-    avgCostMatch ? '✅' : '❌',
+    avgCostMatch ? '✅' : localAvgCostMissing ? '⚠️ Missing Local' : '❌',
     marketValueMatch ? '✅' : '❌',
     notes.join(' '),
     FO_CONFIG.PLATFORM_VERSION,
@@ -303,6 +286,7 @@ function foWriteIbkrReconciliationReport_(dashboard, rows) {
     'Ticker',
     'Overall Status',
     'Severity',
+    'Data Quality Score',
     'Local Quantity',
     'IBKR Quantity',
     'Local Price',
@@ -325,11 +309,12 @@ function foWriteIbkrReconciliationReport_(dashboard, rows) {
 
   sheet.clearContents();
 
-  sheet.getRange(1, 1, 1, 22).setValues([[
+  sheet.getRange(1, 1, 1, 23).setValues([[
     'Timestamp',
     'Ticker',
     'Overall Status',
     'Severity',
+    'Data Quality Score',
     'Local Quantity',
     'IBKR Quantity',
     'Local Price',
@@ -351,11 +336,56 @@ function foWriteIbkrReconciliationReport_(dashboard, rows) {
   ]]);
 
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 22).setValues(rows);
+    sheet.getRange(2, 1, rows.length, 23).setValues(rows);
   }
 
   sheet.setFrozenRows(1);
-  sheet.autoResizeColumns(1, 22);
+  sheet.autoResizeColumns(1, 23);
+}
+
+function foWriteIbkrReconciliationSummary_(dashboard, rows) {
+  const sheet = foEnsureSheet_(dashboard, 'IBKR Reconciliation Summary', [
+    'Timestamp',
+    'Metric',
+    'Value',
+    'Notes',
+    'Platform Version',
+    'Baseline'
+  ]);
+
+  sheet.clearContents();
+
+  sheet.getRange(1, 1, 1, 6).setValues([[
+    'Timestamp',
+    'Metric',
+    'Value',
+    'Notes',
+    'Platform Version',
+    'Baseline'
+  ]]);
+
+  const total = rows.length;
+  const avgScore = total > 0
+    ? rows.reduce(function(sum, row) { return sum + foIbkrNumber_(row[4]); }, 0) / total
+    : 0;
+
+  const high = rows.filter(function(row) { return row[3] === 'HIGH'; }).length;
+  const medium = rows.filter(function(row) { return row[3] === 'MEDIUM'; }).length;
+  const low = rows.filter(function(row) { return row[3] === 'LOW'; }).length;
+  const info = rows.filter(function(row) { return row[3] === 'INFO'; }).length;
+
+  const summaryRows = [
+    [new Date(), 'IBKR Positions Reconciled', total, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Average Data Quality Score', avgScore, '100 is best.', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'High Severity Issues', high, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Medium Severity Issues', medium, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Low Severity Issues', low, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), 'Clean Matches', info, '', FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE]
+  ];
+
+  sheet.getRange(2, 1, summaryRows.length, 6).setValues(summaryRows);
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, 6);
 }
 
 function foIbkrNumber_(value) {
