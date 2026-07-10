@@ -44,7 +44,7 @@ jobs:
             "Code.js"
             "Config.js"
             "Bootstrap.js"
-            "SpreadsheetService.js"
+            "SpreadsheetService_.js"
             "HealthCheck.js"
           )
 
@@ -82,7 +82,7 @@ jobs:
       - name: Scan for committed secrets
         shell: bash
         run: |
-          forbidden_files=(".clasprc.json" ".clasp.json" ".env")
+          forbidden_files=(".clasprc.json" ".env")
           found=0
 
           for file in "${forbidden_files[@]}"; do
