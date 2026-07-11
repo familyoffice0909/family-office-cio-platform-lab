@@ -1,6 +1,6 @@
 /**
  * Buy Zone Intelligence Engine
- * Wave 2.4.1-C — Target Entry Policy Engine
+ * Wave 2.4.1-D — Dynamic Conviction Engine
  */
 
 function foRunBuyZoneIntelligence() {
@@ -11,6 +11,7 @@ function foRunBuyZoneIntelligence() {
 
     const dashboard = foDashboard_();
     const rules = foLoadBuyZoneRules_(dashboard);
+    const convictionRules = foLoadConvictionRules_(dashboard);
     const portfolioSheet = dashboard.getSheetByName(
       FO_SHEETS.PORTFOLIO_MASTER
     );
@@ -27,7 +28,13 @@ function foRunBuyZoneIntelligence() {
 
     const headers = values[0].map(String);
     const targets = foLoadBuyZoneTargets_(dashboard, values, headers, rules);
-    const results = foBuildBuyZoneResults_(values, headers, rules, targets);
+    const results = foBuildBuyZoneResults_(
+      values,
+      headers,
+      rules,
+      targets,
+      convictionRules
+    );
 
     foWriteBuyZoneIntelligence_(dashboard, results);
     foWriteBuyZoneExecutiveSummary_(dashboard, results);
@@ -338,7 +345,13 @@ function foResolvePolicyTargetEntry_(
   return direct;
 }
 
-function foBuildBuyZoneResults_(values, headers, rules, targets) {
+function foBuildBuyZoneResults_(
+  values,
+  headers,
+  rules,
+  targets,
+  convictionRules
+) {
 
   const results = [];
 
@@ -381,16 +394,6 @@ function foBuildBuyZoneResults_(values, headers, rules, targets) {
       foGetVal_(row, headers, 'Portfolio Weight')
     );
 
-    const convictionScore =
-      foBuyZoneNumber_(foGetVal_(row, headers, 'Conviction Score')) ||
-      rules.DEFAULT_CONVICTION_SCORE ||
-      70;
-
-    const riskScore =
-      foBuyZoneNumber_(foGetVal_(row, headers, 'Risk Score')) ||
-      rules.DEFAULT_RISK_SCORE ||
-      50;
-
     const dataQualityScore =
       foBuyZoneNumber_(foGetVal_(row, headers, 'Data Quality Score')) ||
       100;
@@ -427,15 +430,36 @@ function foBuildBuyZoneResults_(values, headers, rules, targets) {
       buyZoneCeiling
     );
 
-    const recommendation = foDetermineBuyZoneRecommendation_({
-      currentPrice: currentPrice,
-      targetEntryPrice: targetEntryPrice,
+    const scoringInput = {
       distancePct: distancePct,
-      portfolioWeight: portfolioWeight,
-      dataQualityScore: dataQualityScore,
+      zonePosition: zonePosition,
       priceFreshness: priceFreshness,
-      rules: rules
-    });
+      dataQualityScore: dataQualityScore,
+      portfolioWeight: portfolioWeight,
+      maxPositionWeight: rules.MAX_POSITION_WEIGHT || 0.15,
+      targetEntrySource: entry.source,
+      targetEntryMethod: entry.method || ''
+    };
+
+    const conviction = foCalculateDynamicConviction_(
+      scoringInput,
+      convictionRules
+    );
+
+    const risk = foCalculateDynamicRisk_(
+      scoringInput,
+      convictionRules
+    );
+
+    const convictionScore = conviction.score;
+    const riskScore = risk.score;
+
+    const recommendation = foDetermineDynamicRecommendation_(
+      convictionScore,
+      riskScore,
+      priceFreshness,
+      convictionRules
+    );
 
     const confidence = foCalculateBuyZoneConfidence_(
       distancePct,
@@ -444,6 +468,13 @@ function foBuildBuyZoneResults_(values, headers, rules, targets) {
       dataQualityScore,
       priceFreshness
     );
+
+    const recommendationReason =
+      foBuildDynamicRecommendationReason_(
+        conviction,
+        risk,
+        recommendation
+      );
 
     results.push({
       ticker: ticker,
@@ -463,7 +494,10 @@ function foBuildBuyZoneResults_(values, headers, rules, targets) {
       distancePct: distancePct,
       portfolioWeight: portfolioWeight,
       convictionScore: convictionScore,
+      convictionSource: conviction.source,
       riskScore: riskScore,
+      riskSource: risk.source,
+      recommendationReason: recommendationReason,
       dataQualityScore: dataQualityScore,
       confidence: confidence,
       recommendation: recommendation,
@@ -713,10 +747,13 @@ function foWriteBuyZoneIntelligence_(dashboard, results) {
     'Distance to Entry %',
     'Portfolio Weight',
     'Conviction Score',
+    'Conviction Source',
     'Risk Score',
+    'Risk Source',
     'Data Quality Score',
     'Buy Zone Confidence',
     'Recommendation',
+    'Recommendation Reason',
     'Rationale',
     'Platform Version',
     'Baseline'
@@ -753,10 +790,13 @@ function foWriteBuyZoneIntelligence_(dashboard, results) {
       item.distancePct,
       item.portfolioWeight,
       item.convictionScore,
+      item.convictionSource,
       item.riskScore,
+      item.riskSource,
       item.dataQualityScore,
       item.confidence,
       item.recommendation,
+      item.recommendationReason,
       item.rationale,
       FO_CONFIG.PLATFORM_VERSION,
       FO_CONFIG.BASELINE
@@ -898,6 +938,9 @@ function foRunBuyZoneIntelligenceSmokeTest() {
       'Target Entry Source',
       'Target Entry Method',
       'Target Discount %',
+      'Conviction Source',
+      'Risk Source',
+      'Recommendation Reason',
       'Buy Zone Floor',
       'Buy Zone Ceiling',
       'Zone Position',
