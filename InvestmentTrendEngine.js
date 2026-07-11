@@ -1,6 +1,6 @@
 /**
  * Investment Trend Intelligence Engine
- * Wave 2.5.1 — Trend Intelligence
+ * Wave 2.5.1-A — Neutral Trend Summary Fix
  */
 
 function foRunInvestmentTrendIntelligence() {
@@ -511,26 +511,59 @@ function foWriteTrendExecutiveSummary_(dashboard, trends) {
       item.overallTrend === 'DETERIORATING';
   });
 
-  const mostImproved = trends.length
+  const mostImprovedCandidate = trends.length
     ? trends.slice().sort(function(a, b) {
         return b.trendScore - a.trendScore;
       })[0]
     : null;
-  const biggestDeterioration = trends.length
+  const biggestDeteriorationCandidate = trends.length
     ? trends.slice().sort(function(a, b) {
         return a.trendScore - b.trendScore;
       })[0]
     : null;
-  const largestConvictionIncrease = trends.length
+  const largestConvictionIncreaseCandidate = trends.length
     ? trends.slice().sort(function(a, b) {
         return b.convictionDelta - a.convictionDelta;
       })[0]
     : null;
-  const largestRiskReduction = trends.length
+  const largestRiskReductionCandidate = trends.length
     ? trends.slice().sort(function(a, b) {
         return a.riskDelta - b.riskDelta;
       })[0]
     : null;
+
+  const mostImproved =
+    mostImprovedCandidate && mostImprovedCandidate.trendScore > 0
+      ? mostImprovedCandidate
+      : null;
+  const biggestDeterioration =
+    biggestDeteriorationCandidate &&
+    biggestDeteriorationCandidate.trendScore < 0
+      ? biggestDeteriorationCandidate
+      : null;
+  const largestConvictionIncrease =
+    largestConvictionIncreaseCandidate &&
+    largestConvictionIncreaseCandidate.convictionDelta > 0
+      ? largestConvictionIncreaseCandidate
+      : null;
+  const largestRiskReduction =
+    largestRiskReductionCandidate &&
+    largestRiskReductionCandidate.riskDelta < 0
+      ? largestRiskReductionCandidate
+      : null;
+
+  const portfolioTrendStatus = foPortfolioTrendStatus_(
+    improving.length,
+    stable.length,
+    weakening.length,
+    trends.length
+  );
+  const portfolioTrendNarrative = foPortfolioTrendNarrative_(
+    portfolioTrendStatus,
+    improving.length,
+    stable.length,
+    weakening.length
+  );
 
   const rows = [
     ['Metric', 'Value', 'Details', 'Timestamp'],
@@ -539,32 +572,36 @@ function foWriteTrendExecutiveSummary_(dashboard, trends) {
     ['Weakening Securities', weakening.length, '', now],
     [
       'Most Improved Security',
-      mostImproved ? mostImproved.ticker : '',
-      mostImproved ? 'Trend score ' + mostImproved.trendScore : '',
+      mostImproved ? mostImproved.ticker : 'NONE',
+      mostImproved
+        ? 'Trend score ' + mostImproved.trendScore
+        : 'No positive trend detected',
       now
     ],
     [
       'Biggest Deterioration',
-      biggestDeterioration ? biggestDeterioration.ticker : '',
+      biggestDeterioration ? biggestDeterioration.ticker : 'NONE',
       biggestDeterioration
         ? 'Trend score ' + biggestDeterioration.trendScore
-        : '',
+        : 'No deterioration detected',
       now
     ],
     [
       'Largest Conviction Increase',
-      largestConvictionIncrease ? largestConvictionIncrease.ticker : '',
+      largestConvictionIncrease
+        ? largestConvictionIncrease.ticker
+        : 'NONE',
       largestConvictionIncrease
         ? 'Delta ' + largestConvictionIncrease.convictionDelta
-        : '',
+        : 'No positive conviction change detected',
       now
     ],
     [
       'Largest Risk Reduction',
-      largestRiskReduction ? largestRiskReduction.ticker : '',
+      largestRiskReduction ? largestRiskReduction.ticker : 'NONE',
       largestRiskReduction
         ? 'Delta ' + largestRiskReduction.riskDelta
-        : '',
+        : 'No risk reduction detected',
       now
     ],
     [
@@ -584,6 +621,12 @@ function foWriteTrendExecutiveSummary_(dashboard, trends) {
       }).length,
       '',
       now
+    ],
+    [
+      'Portfolio Trend Status',
+      portfolioTrendStatus,
+      portfolioTrendNarrative,
+      now
     ]
   ];
 
@@ -595,6 +638,75 @@ function foWriteTrendExecutiveSummary_(dashboard, trends) {
     .setBackground('#1f4e78')
     .setFontColor('#ffffff');
   sheet.autoResizeColumns(1, 4);
+}
+
+function foPortfolioTrendStatus_(
+  improvingCount,
+  stableCount,
+  weakeningCount,
+  totalCount
+) {
+  if (!totalCount) return 'NO DATA';
+
+  if (weakeningCount > improvingCount && weakeningCount >= totalCount / 2) {
+    return 'PORTFOLIO DETERIORATING';
+  }
+
+  if (improvingCount > weakeningCount && improvingCount >= totalCount / 2) {
+    return 'PORTFOLIO IMPROVING';
+  }
+
+  if (improvingCount > 0 && weakeningCount === 0) {
+    return 'EARLY IMPROVEMENT';
+  }
+
+  if (weakeningCount > 0 && improvingCount > 0) {
+    return 'HIGH VOLATILITY';
+  }
+
+  if (stableCount === totalCount) {
+    return 'NO MATERIAL CHANGE';
+  }
+
+  return 'MIXED';
+}
+
+function foPortfolioTrendNarrative_(
+  status,
+  improvingCount,
+  stableCount,
+  weakeningCount
+) {
+  if (status === 'NO MATERIAL CHANGE') {
+    return 'Portfolio trends remain stable. No material changes were ' +
+      'detected since the previous evaluation.';
+  }
+
+  if (status === 'EARLY IMPROVEMENT') {
+    return improvingCount +
+      ' security or securities are improving with no deterioration detected.';
+  }
+
+  if (status === 'PORTFOLIO IMPROVING') {
+    return 'Improving securities now represent the dominant portfolio trend.';
+  }
+
+  if (status === 'PORTFOLIO DETERIORATING') {
+    return weakeningCount +
+      ' security or securities are weakening and require review.';
+  }
+
+  if (status === 'HIGH VOLATILITY') {
+    return 'The portfolio contains both improving and weakening signals.';
+  }
+
+  if (status === 'NO DATA') {
+    return 'No trend history is currently available.';
+  }
+
+  return improvingCount + ' improving, ' +
+    stableCount + ' stable, and ' +
+    weakeningCount + ' weakening.';
 }
 
 function foTrendVal_(row, headers, name) {
