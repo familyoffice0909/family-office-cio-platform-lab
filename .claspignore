@@ -1,0 +1,17 @@
+**/.git/**
+**/.github/**
+**/node_modules/**
+**/docs/**
+**/scripts/**
+**/tests/**
+**/artifacts/**
+.env
+.env.*
+.clasprc.json
+.clasprc.json.*
+CHANGELOG.md
+CONTRIBUTING.md
+README.md
+package.json
+package-lock.json
+eslint.config.js
