@@ -1,9 +1,11 @@
 {
-  "name": "chatgpt-github-appsscript-pipeline",
+  "name": "family-office-cio-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "ChatGPT to GitHub to Google Apps Script deployment pipeline",
+  "description": "Institutional-grade Family Office CIO Platform for Google Apps Script and Google Sheets",
   "scripts": {
+    "validate": "node scripts/validate-platform.js",
+    "smoke:inventory": "node scripts/generate-smoke-test-summary.js",
     "lint": "eslint .",
     "test": "jest --runInBand",
     "push": "clasp push",

@@ -30,110 +30,35 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Run architectural validation
+        run: npm run validate
 
       - name: Run ESLint
         run: npm run lint
 
-      - name: Validate critical platform files
-        shell: bash
-        run: |
-          required_files=(
-            "appsscript.json"
-            "Code.js"
-            "Config.js"
-            "Bootstrap.js"
-            "HealthCheck.js"
-          )
+      - name: Generate smoke-test inventory
+        run: npm run smoke:inventory
 
-          missing=0
-
-          for file in "${required_files[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              echo "::error file=$file::Required platform file is missing."
-              missing=1
-            else
-              echo "Found $file"
-            fi
-          done
-
-          spreadsheet_service="$(
-            find . \
-              -maxdepth 1 \
-              -type f \
-              -name 'SpreadsheetService*.js' \
-              -print \
-              -quit
-          )"
-
-          if [[ -z "$spreadsheet_service" ]]; then
-            echo "::error::A SpreadsheetService JavaScript file is required."
-            missing=1
-          else
-            echo "Found $spreadsheet_service"
-          fi
-
-          if [[ "$missing" -ne 0 ]]; then
-            exit 1
-          fi
-
-      - name: Validate Apps Script manifest
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-
-          const manifestPath = 'appsscript.json';
-
-          if (!fs.existsSync(manifestPath)) {
-            throw new Error('appsscript.json was not found.');
-          }
-
-          const manifest = JSON.parse(
-            fs.readFileSync(manifestPath, 'utf8')
-          );
-
-          if (manifest.runtimeVersion !== 'V8') {
-            throw new Error(
-              'appsscript.json must use runtimeVersion V8.'
-            );
-          }
-
-          if (!manifest.timeZone) {
-            throw new Error(
-              'appsscript.json must define timeZone.'
-            );
-          }
-
-          console.log('Apps Script manifest is valid.');
-          NODE
-
-      - name: Scan for committed secrets
-        shell: bash
-        run: |
-          forbidden_files=(
-            ".clasprc.json"
-            ".env"
-          )
-
-          found=0
-
-          for file in "${forbidden_files[@]}"; do
-            if [[ -f "$file" ]]; then
-              echo "::error file=$file::Sensitive local configuration must not be committed."
-              found=1
-            fi
-          done
-
-          if [[ "$found" -ne 0 ]]; then
-            exit 1
-          fi
+      - name: Upload smoke-test inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-source-inventory
+          path: artifacts/smoke-test-summary.md
+          if-no-files-found: error
+          retention-days: 30
 
       - name: CI summary
         shell: bash
         run: |
-          echo "Family Office CIO Platform validation completed."
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Commit: ${{ github.sha }}"
+          echo "## Family Office CIO Platform CI" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Architectural validation: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ESLint: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Smoke-test inventory: generated" >> "$GITHUB_STEP_SUMMARY"
