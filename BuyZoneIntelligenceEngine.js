@@ -1,6 +1,6 @@
 /**
  * Buy Zone Intelligence Engine
- * Wave 2.4.1-B — Price and Entry Intelligence
+ * Wave 2.4.1-C — Target Entry Policy Engine
  */
 
 function foRunBuyZoneIntelligence() {
@@ -26,7 +26,8 @@ function foRunBuyZoneIntelligence() {
     }
 
     const headers = values[0].map(String);
-    const results = foBuildBuyZoneResults_(values, headers, rules);
+    const targets = foLoadBuyZoneTargets_(dashboard, values, headers, rules);
+    const results = foBuildBuyZoneResults_(values, headers, rules, targets);
 
     foWriteBuyZoneIntelligence_(dashboard, results);
     foWriteBuyZoneExecutiveSummary_(dashboard, results);
@@ -88,7 +89,9 @@ function foLoadBuyZoneRules_(dashboard) {
     ['STALE_PRICE_HOURS', 24,
       'Price age after which the result is marked stale', true],
     ['BLOCK_ACTION_ON_STALE_PRICE', 1,
-      'Set to 1 to prevent BUY or ACCUMULATE on stale prices', true]
+      'Set to 1 to prevent BUY or ACCUMULATE on stale prices', true],
+    ['DEFAULT_TARGET_DISCOUNT_PCT', 0.08,
+      'Default discount used for provisional policy-derived targets', true]
   ];
 
   foEnsureBuyZoneDefaultRules_(sheet, defaultRules);
@@ -130,7 +133,213 @@ function foEnsureBuyZoneDefaultRules_(sheet, defaults) {
   }
 }
 
-function foBuildBuyZoneResults_(values, headers, rules) {
+
+function foLoadBuyZoneTargets_(dashboard, values, headers, rules) {
+  const targetHeaders = [
+    'Ticker', 'Account', 'Target Entry Price', 'Entry Method',
+    'Discount %', 'Conviction Score', 'Risk Score', 'Active',
+    'Notes', 'Updated At'
+  ];
+
+  const sheet = foEnsureSheet_(
+    dashboard,
+    FO_SHEETS.BUY_ZONE_TARGETS,
+    targetHeaders
+  );
+
+  foSeedBuyZoneTargets_(sheet, values, headers, rules);
+
+  const targetValues = sheet.getDataRange().getValues();
+  const targets = {};
+
+  for (let row = 1; row < targetValues.length; row++) {
+    const ticker = String(targetValues[row][0] || '').trim().toUpperCase();
+    const account = String(targetValues[row][1] || '').trim();
+    const active = targetValues[row][7];
+
+    if (!ticker || active === false) continue;
+
+    const target = {
+      ticker: ticker,
+      account: account,
+      manualTarget: foBuyZoneNumber_(targetValues[row][2]),
+      method: String(
+        targetValues[row][3] || 'CURRENT_PRICE_DISCOUNT'
+      ).trim().toUpperCase(),
+      discountPct: foBuyZonePercent_(targetValues[row][4]),
+      convictionScore: foBuyZoneNumber_(targetValues[row][5]),
+      riskScore: foBuyZoneNumber_(targetValues[row][6]),
+      notes: String(targetValues[row][8] || '').trim()
+    };
+
+    targets[foBuyZoneTargetKey_(ticker, account)] = target;
+
+    if (!targets[foBuyZoneTargetKey_(ticker, '')]) {
+      targets[foBuyZoneTargetKey_(ticker, '')] = target;
+    }
+  }
+
+  return targets;
+}
+
+function foSeedBuyZoneTargets_(sheet, values, headers, rules) {
+  const existingValues = sheet.getDataRange().getValues();
+  const existing = {};
+
+  for (let row = 1; row < existingValues.length; row++) {
+    const ticker = String(existingValues[row][0] || '').trim().toUpperCase();
+    const account = String(existingValues[row][1] || '').trim();
+
+    if (ticker) {
+      existing[foBuyZoneTargetKey_(ticker, account)] = true;
+    }
+  }
+
+  const rows = [];
+  const defaultDiscount = rules.DEFAULT_TARGET_DISCOUNT_PCT || 0.08;
+
+  for (let row = 1; row < values.length; row++) {
+    const ticker = String(
+      foGetVal_(values[row], headers, 'Ticker') || ''
+    ).trim().toUpperCase();
+    const account = String(
+      foGetVal_(values[row], headers, 'Account') || ''
+    ).trim();
+
+    if (!ticker) continue;
+
+    const key = foBuyZoneTargetKey_(ticker, account);
+    if (existing[key]) continue;
+
+    rows.push([
+      ticker,
+      account,
+      '',
+      'CURRENT_PRICE_DISCOUNT',
+      defaultDiscount,
+      rules.DEFAULT_CONVICTION_SCORE || 70,
+      rules.DEFAULT_RISK_SCORE || 50,
+      true,
+      'Provisional policy-derived target; review before deployment',
+      new Date()
+    ]);
+
+    existing[key] = true;
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(
+      sheet.getLastRow() + 1,
+      1,
+      rows.length,
+      rows[0].length
+    ).setValues(rows);
+  }
+}
+
+function foBuyZoneTargetKey_(ticker, account) {
+  return String(ticker || '').trim().toUpperCase() +
+    '|' +
+    String(account || '').trim().toUpperCase();
+}
+
+function foBuyZonePercent_(value) {
+  if (value === null || value === undefined || value === '') return 0;
+
+  if (typeof value === 'number') {
+    return value > 1 ? value / 100 : value;
+  }
+
+  const text = String(value).trim();
+  const parsed = foBuyZoneNumber_(text);
+
+  if (!parsed) return 0;
+  return text.indexOf('%') >= 0 || parsed > 1 ? parsed / 100 : parsed;
+}
+
+function foResolvePolicyTargetEntry_(
+  row,
+  headers,
+  ticker,
+  account,
+  currentPrice,
+  targets
+) {
+  const direct = foResolveTargetEntry_(row, headers);
+
+  if (direct.value > 0 && direct.source !== 'AVERAGE COST FALLBACK') {
+    return {
+      value: direct.value,
+      source: direct.source,
+      method: 'DIRECT',
+      discountPct: ''
+    };
+  }
+
+  const policy =
+    targets[foBuyZoneTargetKey_(ticker, account)] ||
+    targets[foBuyZoneTargetKey_(ticker, '')];
+
+  if (!policy) return direct;
+
+  if (policy.manualTarget > 0) {
+    return {
+      value: policy.manualTarget,
+      source: 'BUY ZONE TARGETS',
+      method: 'MANUAL',
+      discountPct: policy.discountPct
+    };
+  }
+
+  const averageCost = foBuyZoneNumber_(
+    foGetVal_(row, headers, 'Average Cost')
+  );
+  const discount = policy.discountPct || 0;
+  const discountedPrice = currentPrice > 0
+    ? currentPrice * (1 - discount)
+    : 0;
+
+  if (
+    policy.method === 'CURRENT_PRICE_DISCOUNT' &&
+    discountedPrice > 0
+  ) {
+    return {
+      value: discountedPrice,
+      source: 'BUY ZONE TARGETS',
+      method: policy.method,
+      discountPct: discount
+    };
+  }
+
+  if (policy.method === 'AVERAGE_COST' && averageCost > 0) {
+    return {
+      value: averageCost,
+      source: 'BUY ZONE TARGETS',
+      method: policy.method,
+      discountPct: discount
+    };
+  }
+
+  if (policy.method === 'LOWER_OF_COST_AND_DISCOUNT') {
+    const candidates = [averageCost, discountedPrice].filter(function(value) {
+      return value > 0;
+    });
+
+    if (candidates.length > 0) {
+      return {
+        value: Math.min.apply(null, candidates),
+        source: 'BUY ZONE TARGETS',
+        method: policy.method,
+        discountPct: discount
+      };
+    }
+  }
+
+  return direct;
+}
+
+function foBuildBuyZoneResults_(values, headers, rules, targets) {
+
   const results = [];
 
   for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
@@ -159,7 +368,9 @@ function foBuildBuyZoneResults_(values, headers, rules) {
       foGetVal_(row, headers, 'Current Price')
     );
 
-    const entry = foResolveTargetEntry_(row, headers);
+    const entry = foResolvePolicyTargetEntry_(
+      row, headers, ticker, account, currentPrice, targets
+    );
     const targetEntryPrice = entry.value;
 
     const marketValue = foBuyZoneNumber_(
@@ -244,6 +455,8 @@ function foBuildBuyZoneResults_(values, headers, rules) {
       priceFreshness: priceFreshness,
       targetEntryPrice: targetEntryPrice,
       targetEntrySource: entry.source,
+      targetEntryMethod: entry.method || '',
+      targetDiscountPct: entry.discountPct,
       buyZoneFloor: buyZoneFloor,
       buyZoneCeiling: buyZoneCeiling,
       zonePosition: zonePosition,
@@ -262,6 +475,8 @@ function foBuildBuyZoneResults_(values, headers, rules) {
         priceFreshness: priceFreshness,
         priceAgeHours: priceAgeHours,
         targetEntrySource: entry.source,
+        targetEntryMethod: entry.method || '',
+        targetDiscountPct: entry.discountPct,
         zonePosition: zonePosition,
         rules: rules
       })
@@ -449,6 +664,12 @@ function foBuildBuyZoneRationale_(input) {
 
   reasons.push('Zone position: ' + input.zonePosition);
   reasons.push('Entry source: ' + input.targetEntrySource);
+  if (input.targetEntryMethod) {
+    reasons.push('Entry method: ' + input.targetEntryMethod);
+  }
+  if (input.targetDiscountPct !== '') {
+    reasons.push('Target discount: ' + (Math.round(input.targetDiscountPct * 10000) / 100) + '%');
+  }
   reasons.push('Price freshness: ' + input.priceFreshness);
 
   if (input.priceAgeHours !== '') {
@@ -484,6 +705,8 @@ function foWriteBuyZoneIntelligence_(dashboard, results) {
     'Price Freshness',
     'Target Entry Price',
     'Target Entry Source',
+    'Target Entry Method',
+    'Target Discount %',
     'Buy Zone Floor',
     'Buy Zone Ceiling',
     'Zone Position',
@@ -522,6 +745,8 @@ function foWriteBuyZoneIntelligence_(dashboard, results) {
       item.priceFreshness,
       item.targetEntryPrice,
       item.targetEntrySource,
+      item.targetEntryMethod,
+      item.targetDiscountPct,
       item.buyZoneFloor,
       item.buyZoneCeiling,
       item.zonePosition,
@@ -671,6 +896,8 @@ function foRunBuyZoneIntelligenceSmokeTest() {
       'Price Timestamp',
       'Price Freshness',
       'Target Entry Source',
+      'Target Entry Method',
+      'Target Discount %',
       'Buy Zone Floor',
       'Buy Zone Ceiling',
       'Zone Position',
