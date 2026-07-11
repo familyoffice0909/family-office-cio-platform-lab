@@ -45,7 +45,8 @@ const requiredFiles = [
   'PhaseBService.js',
   'DashboardService.js',
   'LegacyPortfolioStateService.js',
-  'AutomationService.js'
+  'AutomationService.js',
+  'BuyZoneIntelligenceEngine.js'
 ];
 
 for (const file of requiredFiles) {
@@ -120,6 +121,7 @@ if (exists('AutonomousCioOrchestrator.js')) {
     'PERFORMANCE',
     'EXPOSURE',
     'IBKR_RECONCILIATION',
+    'BUY_ZONE',
     'PORTFOLIO',
     'MARKET',
     'CIO',
