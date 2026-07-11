@@ -1,6 +1,6 @@
 /**
  * Buy Zone Intelligence Engine
- * Wave 2.4.1-F — Executive Dashboard Refinement
+ * Wave 2.4.2 — Investment Decision Support
  */
 
 function foRunBuyZoneIntelligence() {
@@ -38,6 +38,7 @@ function foRunBuyZoneIntelligence() {
 
     foWriteBuyZoneIntelligence_(dashboard, results);
     foWriteBuyZoneExecutiveDashboard_(dashboard, results);
+    foRunInvestmentDecisionSupportFromResults_(dashboard, results);
 
     foInfo_(
       module,
