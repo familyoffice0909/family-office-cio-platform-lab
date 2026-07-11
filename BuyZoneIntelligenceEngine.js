@@ -1,6 +1,6 @@
 /**
  * Buy Zone Intelligence Engine
- * Wave 2.4.1-D — Dynamic Conviction Engine
+ * Wave 2.4.1-E — Executive Buy Zone Dashboard
  */
 
 function foRunBuyZoneIntelligence() {
@@ -37,7 +37,7 @@ function foRunBuyZoneIntelligence() {
     );
 
     foWriteBuyZoneIntelligence_(dashboard, results);
-    foWriteBuyZoneExecutiveSummary_(dashboard, results);
+    foWriteBuyZoneExecutiveDashboard_(dashboard, results);
 
     foInfo_(
       module,
