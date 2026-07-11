@@ -1,6 +1,6 @@
 /**
  * Investment Decision Support Engine
- * Wave 2.4.4 — Decision History Retention
+ * Wave 2.5.1 — Trend Intelligence Integration
  */
 
 function foRunInvestmentDecisionSupport() {
@@ -108,6 +108,7 @@ function foBuildInvestmentDecisionSupport_(dashboard, results) {
 
   foWriteDecisionSupport_(dashboard, decisions);
   foAppendDecisionHistory_(dashboard, decisions);
+  foRunInvestmentTrendIntelligence();
 
   return {
     decisions: decisions
