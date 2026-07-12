@@ -1,6 +1,6 @@
 /**
  * Investment Decision Support Engine
- * Wave 2.5.1 — Trend Intelligence Integration
+ * Wave 2.5.2 — Materiality Intelligence Integration
  */
 
 function foRunInvestmentDecisionSupport() {
@@ -107,6 +107,7 @@ function foBuildInvestmentDecisionSupport_(dashboard, results) {
   });
 
   foWriteDecisionSupport_(dashboard, decisions);
+  foWriteMaterialityEvents_(dashboard, decisions);
   foAppendDecisionHistory_(dashboard, decisions);
   foRunInvestmentTrendIntelligence();
 
@@ -140,15 +141,19 @@ function foBuildDecisionRecord_(item, history) {
     confidenceDelta,
     distanceDelta
   );
-  const materialityScore = foDecisionMateriality_(
+  const action = foDecisionAction_(item);
+  const materialityPolicy = foLoadMaterialityPolicy_(foDashboard_());
+  const materialityAssessment = foCalculateMaterialityAssessment_(
     item,
     previous,
     convictionDelta,
     riskDelta,
     confidenceDelta,
-    distanceDelta
+    distanceDelta,
+    action,
+    materialityPolicy
   );
-  const action = foDecisionAction_(item);
+  const materialityScore = materialityAssessment.score;
   const allocationBand = foDecisionAllocationBand_(item, action);
   const priorityScore = foDecisionPriority_(
     item,
@@ -163,6 +168,9 @@ function foBuildDecisionRecord_(item, history) {
     recommendation: item.recommendation,
     allocationBand: allocationBand,
     materialityScore: materialityScore,
+    materialityLevel: materialityAssessment.level,
+    materialityPrimaryDriver: materialityAssessment.primaryDriver,
+    materialityDrivers: materialityAssessment.drivers.join(' | '),
     priorityScore: priorityScore,
     trend: trend,
     convictionScore: item.convictionScore,
@@ -363,6 +371,9 @@ function foWriteDecisionSupport_(dashboard, decisions) {
       'Recommendation',
       'Allocation Band',
       'Materiality Score',
+      'Materiality Level',
+      'Materiality Primary Driver',
+      'Materiality Drivers',
       'Priority Score',
       'Trend',
       'Conviction',
@@ -394,6 +405,9 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     'Recommendation',
     'Allocation Band',
     'Materiality Score',
+    'Materiality Level',
+    'Materiality Primary Driver',
+    'Materiality Drivers',
     'Priority Score',
     'Trend',
     'Conviction',
@@ -426,6 +440,9 @@ function foWriteDecisionSupport_(dashboard, decisions) {
       item.recommendation,
       item.allocationBand,
       item.materialityScore,
+      item.materialityLevel,
+      item.materialityPrimaryDriver,
+      item.materialityDrivers,
       item.priorityScore,
       item.trend,
       item.convictionScore,
