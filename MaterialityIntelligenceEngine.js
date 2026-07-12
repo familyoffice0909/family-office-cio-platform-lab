@@ -298,24 +298,48 @@ function foRunMaterialityEngineSmokeTest() {
     throw new Error('Materiality thresholds are not strictly increasing.');
   }
 
-  const sheet = dashboard.getSheetByName(
-    FO_SHEETS.INVESTMENT_DECISION_SUPPORT
+  const intelligence = dashboard.getSheetByName(
+    FO_SHEETS.BUY_ZONE_INTELLIGENCE
   );
 
-  if (!sheet || sheet.getLastRow() < 2) {
-    foRunInvestmentDecisionSupport();
+  if (!intelligence || intelligence.getLastRow() < 2) {
+    foRunBuyZoneIntelligence();
   }
 
+  // Enterprise fix: always execute the producer before testing its output.
+  const decisionResult = foRunInvestmentDecisionSupport();
   const events = dashboard.getSheetByName(
     FO_SHEETS.MATERIALITY_EVENTS
   );
 
   if (!events || events.getLastRow() < 2) {
-    throw new Error('Materiality Events was not generated.');
+    throw new Error(
+      'Materiality Events was not generated after Decision Support execution.'
+    );
   }
+
+  const headers = events.getRange(
+    1,
+    1,
+    1,
+    events.getLastColumn()
+  ).getValues()[0];
+
+  [
+    'Materiality Score',
+    'Materiality Level',
+    'Primary Driver',
+    'All Drivers'
+  ].forEach(function(name) {
+    if (headers.indexOf(name) === -1) {
+      throw new Error('Missing Materiality Events column: ' + name);
+    }
+  });
 
   return {
     status: 'PASS',
+    decisions: decisionResult.decisions,
+    eventRows: events.getLastRow() - 1,
     lowThreshold: policy.lowThreshold,
     mediumThreshold: policy.mediumThreshold,
     highThreshold: policy.highThreshold,
