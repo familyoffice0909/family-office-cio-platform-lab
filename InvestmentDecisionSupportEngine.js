@@ -1,6 +1,6 @@
 /**
  * Investment Decision Support Engine
- * Wave 2.5.2 Enterprise Edition — Drop-in Integrated Replacement
+ * Wave 2.5.3-A — Magnitude-Weighted Trend Scoring
  */
 
 function foRunInvestmentDecisionSupport() {
@@ -229,14 +229,65 @@ function foDecisionTrend_(
 ) {
   let points = 0;
 
-  if (convictionDelta >= 5) points += 1;
-  if (convictionDelta <= -5) points -= 1;
-  if (riskDelta <= -5) points += 1;
-  if (riskDelta >= 5) points -= 1;
-  if (confidenceDelta >= 5) points += 1;
-  if (confidenceDelta <= -5) points -= 1;
-  if (distanceDelta <= -0.02) points += 1;
-  if (distanceDelta >= 0.02) points -= 1;
+  // Conviction magnitude.
+  if (convictionDelta >= 20) {
+    points += 3;
+  } else if (convictionDelta >= 10) {
+    points += 2;
+  } else if (convictionDelta >= 5) {
+    points += 1;
+  } else if (convictionDelta <= -20) {
+    points -= 3;
+  } else if (convictionDelta <= -10) {
+    points -= 2;
+  } else if (convictionDelta <= -5) {
+    points -= 1;
+  }
+
+  // Risk magnitude. Lower risk is positive; higher risk is negative.
+  if (riskDelta <= -20) {
+    points += 3;
+  } else if (riskDelta <= -10) {
+    points += 2;
+  } else if (riskDelta <= -5) {
+    points += 1;
+  } else if (riskDelta >= 20) {
+    points -= 3;
+  } else if (riskDelta >= 10) {
+    points -= 2;
+  } else if (riskDelta >= 5) {
+    points -= 1;
+  }
+
+  // Confidence magnitude.
+  if (confidenceDelta >= 20) {
+    points += 3;
+  } else if (confidenceDelta >= 10) {
+    points += 2;
+  } else if (confidenceDelta >= 5) {
+    points += 1;
+  } else if (confidenceDelta <= -20) {
+    points -= 3;
+  } else if (confidenceDelta <= -10) {
+    points -= 2;
+  } else if (confidenceDelta <= -5) {
+    points -= 1;
+  }
+
+  // Distance-to-entry magnitude. Moving closer is positive.
+  if (distanceDelta <= -0.10) {
+    points += 3;
+  } else if (distanceDelta <= -0.05) {
+    points += 2;
+  } else if (distanceDelta <= -0.02) {
+    points += 1;
+  } else if (distanceDelta >= 0.10) {
+    points -= 3;
+  } else if (distanceDelta >= 0.05) {
+    points -= 2;
+  } else if (distanceDelta >= 0.02) {
+    points -= 1;
+  }
 
   if (points >= 2) return 'IMPROVING';
   if (points <= -2) return 'DETERIORATING';
