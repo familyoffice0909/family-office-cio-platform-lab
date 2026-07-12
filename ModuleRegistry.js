@@ -14,6 +14,7 @@ const FO_MODULES = {
   EXPOSURE: foRunPortfolioExposureAttribution,
   IBKR_RECONCILIATION: foRunIbkrReconciliation,
   BUY_ZONE: foRunBuyZoneIntelligence,
+  PORTFOLIO_MATERIALITY: foRunPortfolioMaterialityEngine,
   PORTFOLIO: foBuildPortfolioSnapshot,
   MARKET: foRunMarketIntelligence,
   CIO: foRunCioDecisionEngine,

@@ -23,6 +23,7 @@ function foRunAutonomousCioOrchestrator() {
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Exposure Attribution', foGetModule('EXPOSURE')));
     steps.push(foRunOrchestratorStep_(runId, 'IBKR Reconciliation', foGetModule('IBKR_RECONCILIATION')));
     steps.push(foRunOrchestratorStep_(runId, 'Buy Zone Intelligence', foGetModule('BUY_ZONE')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Materiality', foGetModule('PORTFOLIO_MATERIALITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
