@@ -15,6 +15,7 @@ const FO_MODULES = {
   IBKR_RECONCILIATION: foRunIbkrReconciliation,
   BUY_ZONE: foRunBuyZoneIntelligence,
   PORTFOLIO_MATERIALITY: foRunPortfolioMaterialityEngine,
+  CAPITAL_DEPLOYMENT: foRunCapitalDeploymentPriorityEngine,
   PORTFOLIO: foBuildPortfolioSnapshot,
   MARKET: foRunMarketIntelligence,
   CIO: foRunCioDecisionEngine,
