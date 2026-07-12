@@ -1,6 +1,6 @@
 /**
  * Investment Decision Support Engine
- * Wave 2.5.2 — Materiality Intelligence Integration
+ * Wave 2.5.2 Enterprise Edition — Drop-in Integrated Replacement
  */
 
 function foRunInvestmentDecisionSupport() {
@@ -67,11 +67,7 @@ function foReadDecisionSupportInputs_(dashboard) {
         foDecisionVal_(row, headers, 'Distance to Entry %')
       ),
       zonePosition: foDecisionVal_(row, headers, 'Zone Position'),
-      priceFreshness: foDecisionVal_(
-        row,
-        headers,
-        'Price Freshness'
-      ),
+      priceFreshness: foDecisionVal_(row, headers, 'Price Freshness'),
       convictionScore: foDecisionNumber_(
         foDecisionVal_(row, headers, 'Conviction Score')
       ),
@@ -100,12 +96,19 @@ function foReadDecisionSupportInputs_(dashboard) {
 
 function foBuildInvestmentDecisionSupport_(dashboard, results) {
   const history = foLoadDecisionHistory_(dashboard);
+  const materialityPolicy = foLoadMaterialityPolicy_(dashboard);
+
   const decisions = results.map(function(item) {
-    return foBuildDecisionRecord_(item, history);
+    return foBuildDecisionRecord_(
+      item,
+      history,
+      materialityPolicy
+    );
   }).sort(function(a, b) {
     return b.priorityScore - a.priorityScore;
   });
 
+  // Producer order is intentional and regression-tested.
   foWriteDecisionSupport_(dashboard, decisions);
   foWriteMaterialityEvents_(dashboard, decisions);
   foAppendDecisionHistory_(dashboard, decisions);
@@ -116,7 +119,7 @@ function foBuildInvestmentDecisionSupport_(dashboard, results) {
   };
 }
 
-function foBuildDecisionRecord_(item, history) {
+function foBuildDecisionRecord_(item, history, materialityPolicy) {
   const key = foDecisionKey_(item.ticker, item.account);
   const previous = history[key] || null;
 
@@ -142,7 +145,6 @@ function foBuildDecisionRecord_(item, history) {
     distanceDelta
   );
   const action = foDecisionAction_(item);
-  const materialityPolicy = foLoadMaterialityPolicy_(foDashboard_());
   const materialityAssessment = foCalculateMaterialityAssessment_(
     item,
     previous,
@@ -153,11 +155,10 @@ function foBuildDecisionRecord_(item, history) {
     action,
     materialityPolicy
   );
-  const materialityScore = materialityAssessment.score;
   const allocationBand = foDecisionAllocationBand_(item, action);
   const priorityScore = foDecisionPriority_(
     item,
-    materialityScore,
+    materialityAssessment.score,
     action
   );
 
@@ -167,7 +168,7 @@ function foBuildDecisionRecord_(item, history) {
     action: action,
     recommendation: item.recommendation,
     allocationBand: allocationBand,
-    materialityScore: materialityScore,
+    materialityScore: materialityAssessment.score,
     materialityLevel: materialityAssessment.level,
     materialityPrimaryDriver: materialityAssessment.primaryDriver,
     materialityDrivers: materialityAssessment.drivers.join(' | '),
@@ -188,7 +189,7 @@ function foBuildDecisionRecord_(item, history) {
     executiveReason: foDecisionExecutiveReason_(
       item,
       trend,
-      materialityScore,
+      materialityAssessment,
       allocationBand
     )
   };
@@ -196,13 +197,11 @@ function foBuildDecisionRecord_(item, history) {
 
 function foDecisionAction_(item) {
   if (item.priceFreshness !== 'FRESH') return 'REFRESH DATA';
-
   if (item.recommendation === 'STRONG BUY') return 'DEPLOY NOW';
   if (item.recommendation === 'BUY') return 'BUY';
   if (item.recommendation === 'ACCUMULATE') return 'ACCUMULATE';
   if (item.recommendation === 'AVOID') return 'AVOID';
   if (item.recommendation === 'HOLD') return 'HOLD';
-
   return 'WATCH';
 }
 
@@ -219,46 +218,7 @@ function foDecisionAllocationBand_(item, action) {
   if (item.riskScore > 50 || item.confidence < 60) return '0-1%';
   if (item.convictionScore >= 90 && item.riskScore <= 25) return '3-5%';
   if (item.convictionScore >= 80 && item.riskScore <= 35) return '2-4%';
-
   return '1-2%';
-}
-
-function foDecisionMateriality_(
-  item,
-  previous,
-  convictionDelta,
-  riskDelta,
-  confidenceDelta,
-  distanceDelta
-) {
-  let score = 0;
-
-  const recommendationWeight = {
-    'STRONG BUY': 35,
-    BUY: 30,
-    ACCUMULATE: 22,
-    WATCH: 12,
-    HOLD: 8,
-    AVOID: 30
-  };
-
-  score += recommendationWeight[item.recommendation] || 5;
-
-  if (item.zonePosition === 'IN BUY ZONE') score += 20;
-  if (item.zonePosition === 'BELOW ZONE') score += 15;
-  if (item.priceFreshness !== 'FRESH') score -= 20;
-
-  if (previous) {
-    score += Math.min(15, Math.abs(convictionDelta));
-    score += Math.min(10, Math.abs(riskDelta));
-    score += Math.min(10, Math.abs(confidenceDelta));
-    score += Math.min(10, Math.abs(distanceDelta) * 100);
-
-    if (previous.recommendation !== item.recommendation) score += 20;
-    if (previous.zonePosition !== item.zonePosition) score += 15;
-  }
-
-  return Math.round(Math.max(0, Math.min(100, score)));
 }
 
 function foDecisionTrend_(
@@ -306,13 +266,15 @@ function foDecisionPriority_(item, materialityScore, action) {
 function foDecisionExecutiveReason_(
   item,
   trend,
-  materialityScore,
+  materialityAssessment,
   allocationBand
 ) {
   const parts = [
     item.recommendation,
     'Trend ' + trend,
-    'Materiality ' + materialityScore,
+    'Materiality ' + materialityAssessment.score +
+      ' (' + materialityAssessment.level + ')',
+    'Driver ' + materialityAssessment.primaryDriver,
     'Conviction ' + item.convictionScore,
     'Risk ' + item.riskScore,
     'Allocation ' + allocationBand
@@ -337,67 +299,60 @@ function foLoadDecisionHistory_(dashboard) {
   if (sheet.getLastRow() < 2) return {};
 
   const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
   const history = {};
 
   for (let row = values.length - 1; row >= 1; row--) {
-    const ticker = String(values[row][1] || '').trim().toUpperCase();
-    const account = String(values[row][2] || '').trim();
+    const ticker = String(
+      foDecisionVal_(values[row], headers, 'Ticker') || ''
+    ).trim().toUpperCase();
+    const account = String(
+      foDecisionVal_(values[row], headers, 'Account') || ''
+    ).trim();
     const key = foDecisionKey_(ticker, account);
 
     if (!ticker || history[key]) continue;
 
+    const signature = String(
+      foDecisionVal_(values[row], headers, 'State Signature') || ''
+    );
+    const signatureParts = signature.split('|');
+
     history[key] = {
-      recommendation: values[row][3],
-      zonePosition: values[row][4],
-      convictionScore: foDecisionNumber_(values[row][5]),
-      riskScore: foDecisionNumber_(values[row][6]),
-      confidence: foDecisionNumber_(values[row][7]),
-      distancePct: foDecisionNullableNumber_(values[row][8])
+      recommendation: foDecisionVal_(
+        values[row],
+        headers,
+        'Recommendation'
+      ),
+      zonePosition: foDecisionVal_(
+        values[row],
+        headers,
+        'Zone Position'
+      ),
+      convictionScore: foDecisionNumber_(
+        foDecisionVal_(values[row], headers, 'Conviction')
+      ),
+      riskScore: foDecisionNumber_(
+        foDecisionVal_(values[row], headers, 'Risk')
+      ),
+      confidence: foDecisionNumber_(
+        foDecisionVal_(values[row], headers, 'Confidence')
+      ),
+      distancePct: foDecisionNullableNumber_(
+        foDecisionVal_(values[row], headers, 'Distance to Entry %')
+      ),
+      action: foDecisionVal_(values[row], headers, 'Action'),
+      priceFreshness: signatureParts.length
+        ? signatureParts[signatureParts.length - 1]
+        : ''
     };
   }
 
   return history;
 }
 
-function foWriteDecisionSupport_(dashboard, decisions) {
-  const sheet = foEnsureSheet_(
-    dashboard,
-    FO_SHEETS.INVESTMENT_DECISION_SUPPORT,
-    [
-      'Rank',
-      'Ticker',
-      'Account',
-      'Action',
-      'Recommendation',
-      'Allocation Band',
-      'Materiality Score',
-      'Materiality Level',
-      'Materiality Primary Driver',
-      'Materiality Drivers',
-      'Priority Score',
-      'Trend',
-      'Conviction',
-      'Conviction Delta',
-      'Risk',
-      'Risk Delta',
-      'Confidence',
-      'Confidence Delta',
-      'Distance to Entry %',
-      'Distance Delta',
-      'Price Freshness',
-      'Zone Position',
-      'Current Price',
-      'Target Entry Price',
-      'Executive Reason',
-      'Timestamp',
-      'Platform Version',
-      'Baseline'
-    ]
-  );
-
-  sheet.clearContents();
-
-  const headers = [
+function foDecisionSupportHeaders_() {
+  return [
     'Rank',
     'Ticker',
     'Account',
@@ -427,7 +382,17 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     'Platform Version',
     'Baseline'
   ];
+}
 
+function foWriteDecisionSupport_(dashboard, decisions) {
+  const headers = foDecisionSupportHeaders_();
+  const sheet = foEnsureSheet_(
+    dashboard,
+    FO_SHEETS.INVESTMENT_DECISION_SUPPORT,
+    headers
+  );
+
+  sheet.clearContents();
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
   const now = new Date();
@@ -473,10 +438,11 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     .setFontWeight('bold')
     .setBackground('#1f4e78')
     .setFontColor('#ffffff');
-  sheet.getRange(2, 16, Math.max(rows.length, 1), 2)
+  sheet.getRange(2, 19, Math.max(rows.length, 1), 2)
     .setNumberFormat('0.00%');
   sheet.autoResizeColumns(1, headers.length);
-  sheet.setColumnWidth(22, 420);
+  sheet.setColumnWidth(10, 440);
+  sheet.setColumnWidth(25, 520);
 }
 
 function foAppendDecisionHistory_(dashboard, decisions) {
@@ -586,13 +552,11 @@ function foDecisionPercent_(value) {
 
 function foRunInvestmentDecisionSupportSmokeTest() {
   const dashboard = foDashboard_();
+  const intelligence = dashboard.getSheetByName(
+    FO_SHEETS.BUY_ZONE_INTELLIGENCE
+  );
 
-  if (
-    !dashboard.getSheetByName(FO_SHEETS.BUY_ZONE_INTELLIGENCE) ||
-    dashboard.getSheetByName(
-      FO_SHEETS.BUY_ZONE_INTELLIGENCE
-    ).getLastRow() < 2
-  ) {
+  if (!intelligence || intelligence.getLastRow() < 2) {
     foRunBuyZoneIntelligence();
   }
 
@@ -600,9 +564,16 @@ function foRunInvestmentDecisionSupportSmokeTest() {
   const sheet = dashboard.getSheetByName(
     FO_SHEETS.INVESTMENT_DECISION_SUPPORT
   );
+  const events = dashboard.getSheetByName(
+    FO_SHEETS.MATERIALITY_EVENTS
+  );
 
   if (!sheet || sheet.getLastRow() < 2) {
     throw new Error('Investment Decision Support was not generated.');
+  }
+
+  if (!events || events.getLastRow() < 2) {
+    throw new Error('Materiality Events was not generated.');
   }
 
   const headers = sheet.getRange(
@@ -614,6 +585,9 @@ function foRunInvestmentDecisionSupportSmokeTest() {
 
   [
     'Materiality Score',
+    'Materiality Level',
+    'Materiality Primary Driver',
+    'Materiality Drivers',
     'Trend',
     'Allocation Band',
     'Priority Score'
