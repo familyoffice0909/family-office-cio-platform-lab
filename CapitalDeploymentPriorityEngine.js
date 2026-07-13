@@ -388,6 +388,7 @@ function foWriteCapitalDeploymentPriorities_(dashboard, assessment) {
     .setBackground('#1f4e78')
     .setFontColor('#ffffff');
   sheet.getRange(2, 17, Math.max(rows.length, 1), 1).setNumberFormat('0.00%');
+  sheet.getRange(2, 18, Math.max(rows.length, 1), 2).setNumberFormat('0.00');
   sheet.autoResizeColumns(1, headers.length);
   sheet.setColumnWidth(21, 320);
   sheet.setColumnWidth(22, 560);
