@@ -33,6 +33,7 @@ function foRunAutonomousCioOrchestrator() {
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Executive Report', foGetModule('REPORT')));
     steps.push(foRunOrchestratorStep_(runId, 'Executive Dashboard', foGetModule('DASHBOARD')));
+    steps.push(foRunOrchestratorStep_(runId, 'Production Certification', foGetModule('PRODUCTION_CERTIFICATION')));
 
     const summary = foBuildOrchestratorSummary_(steps, startedAt);
     foWriteOrchestratorRunLog_(runId, startedAt, summary, steps);
