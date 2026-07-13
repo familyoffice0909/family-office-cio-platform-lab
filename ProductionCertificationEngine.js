@@ -170,7 +170,6 @@ function foValidateProductionPrices_(dashboard) {
 }
 
 function foValidateDeploymentHistory_(dashboard) {
-  const controls = [];
   const sheet = dashboard.getSheetByName(
     FO_SHEETS.CAPITAL_DEPLOYMENT_HISTORY
   );
@@ -186,66 +185,91 @@ function foValidateDeploymentHistory_(dashboard) {
     ];
   }
 
-  const expectedHeaders = [
-    'Timestamp',
-    'Run ID',
-    'Portfolio Directive',
-    'Top Ticker',
-    'Top Account',
-    'Top Decision',
-    'Top Deployment Score',
-    'Deployable Candidates',
-    'Blocked Candidates',
-    'Portfolio Materiality Score',
-    'Platform Version',
-    'Baseline',
-    'State Signature'
-  ];
-
+  const expectedHeaders =
+    foCapitalDeploymentHistoryHeadersWave322_();
   const values = sheet.getDataRange().getValues();
   const headers = values[0].map(String);
   const issues = [];
 
-  expectedHeaders.forEach(function(header, index) {
-    if (headers[index] !== header) {
-      issues.push(
-        'Header mismatch at column ' + (index + 1)
-      );
+  expectedHeaders.forEach(function(header) {
+    if (headers.indexOf(header) === -1) {
+      issues.push('Missing history column: ' + header);
     }
+  });
+
+  if (issues.length) {
+    return [
+      foCertificationControl_(
+        'AUDIT',
+        'Capital Deployment History',
+        'FAIL',
+        issues.join(' | ')
+      )
+    ];
+  }
+
+  const indexes = {};
+  expectedHeaders.forEach(function(header) {
+    indexes[header] = headers.indexOf(header);
   });
 
   values.slice(1).forEach(function(row, index) {
-    const runId = String(row[1] || '').trim();
-    const directive = String(row[2] || '').trim();
-    const signature = String(row[12] || '').trim();
+    const sheetRow = index + 2;
+    const timestamp = row[indexes.Timestamp];
+    const runId = String(row[indexes['Run ID']] || '').trim();
+    const directive = String(
+      row[indexes['Portfolio Directive']] || ''
+    ).trim();
+    const ticker = String(row[indexes['Top Ticker']] || '').trim();
+    const decision = String(row[indexes['Top Decision']] || '').trim();
+    const baseline = String(row[indexes.Baseline] || '').trim();
+    const signature = String(
+      row[indexes['State Signature']] || ''
+    ).trim();
+
+    if (!timestamp) issues.push('Missing timestamp at row ' + sheetRow);
 
     if (
-      runId &&
-      runId.indexOf('CIO-RUN-') !== 0 &&
-      runId.indexOf('CAPITAL-RUN-') !== 0
+      !runId ||
+      (
+        runId.indexOf('CIO-RUN-') !== 0 &&
+        runId.indexOf('CAPITAL-RUN-') !== 0 &&
+        runId.indexOf('LEGACY-CAPITAL-RUN-') !== 0
+      )
     ) {
-      issues.push('Invalid Run ID at row ' + (index + 2));
+      issues.push('Invalid Run ID at row ' + sheetRow);
     }
 
     if (!directive) {
-      issues.push('Missing directive at row ' + (index + 2));
+      issues.push('Missing directive at row ' + sheetRow);
+    }
+
+    if (!ticker) {
+      issues.push('Missing top ticker at row ' + sheetRow);
+    }
+
+    if (!decision) {
+      issues.push('Missing top decision at row ' + sheetRow);
+    }
+
+    if (!baseline) {
+      issues.push('Missing baseline at row ' + sheetRow);
     }
 
     if (!signature) {
-      issues.push('Missing signature at row ' + (index + 2));
+      issues.push('Missing signature at row ' + sheetRow);
     }
   });
 
-  controls.push(
+  return [
     foCertificationControl_(
       'AUDIT',
       'Capital Deployment History',
       issues.length ? 'FAIL' : 'PASS',
-      issues.join(' | ') || 'History schema and lineage valid'
+      issues.join(' | ') ||
+        'History schema, directive and lineage valid'
     )
-  );
-
-  return controls;
+  ];
 }
 
 function foValidateDeploymentContract_(dashboard) {
