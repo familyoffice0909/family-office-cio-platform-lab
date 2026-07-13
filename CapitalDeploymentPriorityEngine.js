@@ -21,7 +21,10 @@ function foRunCapitalDeploymentPriorityEngine() {
     );
 
     foWriteCapitalDeploymentPriorities_(dashboard, assessment);
-    foAppendCapitalDeploymentHistory_(dashboard, assessment);
+    const historyResult = foAppendCapitalDeploymentHistory_(
+      dashboard,
+      assessment
+    );
 
     foInfo_(
       module,
@@ -39,7 +42,12 @@ function foRunCapitalDeploymentPriorityEngine() {
       deploySoon: assessment.priorities.filter(function(item) {
         return item.deploymentDecision === 'DEPLOY SOON';
       }).length,
-      holdCash: assessment.portfolioDirective === 'HOLD CASH'
+      holdCash:
+        assessment.deployable.length === 0 ||
+        assessment.portfolioDirective.indexOf('HOLD CASH') >= 0,
+      portfolioDirective: assessment.portfolioDirective,
+      historyAppended: historyResult.appended,
+      runId: historyResult.runId
     };
   } catch (error) {
     foError_(module, 'Failure', error);
@@ -124,8 +132,14 @@ function foReadCapitalDeploymentInputs_(dashboard) {
       distancePct: foCapitalNullableNumber_(foCapitalVal_(row, headers, 'Distance to Entry %')),
       priceFreshness: String(foCapitalVal_(row, headers, 'Price Freshness') || '').trim(),
       zonePosition: String(foCapitalVal_(row, headers, 'Zone Position') || '').trim(),
-      currentPrice: foCapitalNumber_(foCapitalVal_(row, headers, 'Current Price'), 0),
-      targetEntryPrice: foCapitalNumber_(foCapitalVal_(row, headers, 'Target Entry Price'), 0),
+      currentPrice: foCapitalPriceNumber_(
+        foCapitalVal_(row, headers, 'Current Price'),
+        0
+      ),
+      targetEntryPrice: foCapitalPriceNumber_(
+        foCapitalVal_(row, headers, 'Target Entry Price'),
+        0
+      ),
       executiveReason: String(foCapitalVal_(row, headers, 'Executive Reason') || '').trim()
     };
   }).filter(function(item) {
@@ -396,9 +410,10 @@ function foWriteCapitalDeploymentPriorities_(dashboard, assessment) {
 
 function foAppendCapitalDeploymentHistory_(dashboard, assessment) {
   const headers = [
-    'Timestamp', 'Portfolio Directive', 'Top Ticker', 'Top Account',
-    'Top Decision', 'Top Deployment Score', 'Deployable Candidates',
-    'Blocked Candidates', 'Portfolio Materiality Score', 'Platform Version',
+    'Timestamp', 'Run ID', 'Portfolio Directive', 'Top Ticker',
+    'Top Account', 'Top Decision', 'Top Deployment Score',
+    'Deployable Candidates', 'Blocked Candidates',
+    'Portfolio Materiality Score', 'Platform Version',
     'Baseline', 'State Signature'
   ];
 
@@ -409,6 +424,7 @@ function foAppendCapitalDeploymentHistory_(dashboard, assessment) {
   );
 
   const top = assessment.topPriority;
+  const runId = foCapitalActiveRunId_();
   const signature = [
     assessment.portfolioDirective,
     top ? top.ticker : 'NONE',
@@ -420,25 +436,56 @@ function foAppendCapitalDeploymentHistory_(dashboard, assessment) {
     assessment.portfolioMateriality.score
   ].join('|');
 
-  if (sheet.getLastRow() >= 2) {
-    const lastSignature = String(
-      sheet.getRange(sheet.getLastRow(), headers.length).getValue() || ''
-    );
-    if (lastSignature === signature) {
-      return { appended: false, reason: 'UNCHANGED' };
-    }
-  }
-
   sheet.appendRow([
-    new Date(), assessment.portfolioDirective,
-    top ? top.ticker : 'NONE', top ? top.account : 'NONE',
-    top ? top.deploymentDecision : 'NONE', top ? top.deploymentScore : 0,
-    assessment.deployable.length, assessment.blocked.length,
+    new Date(),
+    runId,
+    assessment.portfolioDirective,
+    top ? top.ticker : 'NONE',
+    top ? top.account : 'NONE',
+    top ? top.deploymentDecision : 'NONE',
+    top ? top.deploymentScore : 0,
+    assessment.deployable.length,
+    assessment.blocked.length,
     assessment.portfolioMateriality.score,
-    FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE, signature
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    signature
   ]);
 
-  return { appended: true, signature: signature };
+  return {
+    appended: true,
+    runId: runId,
+    signature: signature
+  };
+}
+
+function foCapitalActiveRunId_() {
+  const value = PropertiesService.getScriptProperties()
+    .getProperty('FO_ACTIVE_RUN_ID');
+
+  return value || foNowId_('CAPITAL-RUN');
+}
+
+function foCapitalPriceNumber_(value, fallback) {
+  if (
+    Object.prototype.toString.call(value) === '[object Date]' &&
+    !isNaN(value.getTime())
+  ) {
+    const spreadsheetEpoch = new Date(1899, 11, 30);
+    const serial =
+      (value.getTime() - spreadsheetEpoch.getTime()) /
+      (24 * 60 * 60 * 1000);
+    const normalized = Math.round(serial * 100000000) / 100000000;
+
+    return foCapitalValidPrice_(normalized) ? normalized : fallback;
+  }
+
+  const number = foCapitalNumber_(value, fallback);
+  return foCapitalValidPrice_(number) ? number : fallback;
+}
+
+function foCapitalValidPrice_(value) {
+  return isFinite(value) && value >= 0 && value <= 1000000;
 }
 
 function foCapitalVal_(row, headers, name) {
@@ -493,11 +540,35 @@ function foRunCapitalDeploymentPriorityEngineSmokeTest() {
   const values = output.getDataRange().getValues();
   const headers = values[0].map(String);
   const scoreIndex = headers.indexOf('Deployment Score');
+  const priceIndex = headers.indexOf('Current Price');
+  const freshnessIndex = headers.indexOf('Price Freshness');
+  const directiveIndex = headers.indexOf('Portfolio Directive');
 
   values.slice(1).forEach(function(row) {
     const score = Number(row[scoreIndex]);
+    const price = Number(row[priceIndex]);
+    const freshness = String(row[freshnessIndex] || '');
+    const directive = String(row[directiveIndex] || '');
+
     if (!isFinite(score) || score < 0 || score > 100) {
       throw new Error('Deployment score outside 0-100.');
+    }
+
+    if (
+      freshness !== 'MISSING' &&
+      (!isFinite(price) || price <= 0 || price > 1000000)
+    ) {
+      throw new Error('Invalid Current Price in deployment output.');
+    }
+
+    if (
+      result.holdCash !==
+      (
+        (result.deployNow === 0 && result.deploySoon === 0) ||
+        directive.indexOf('HOLD CASH') >= 0
+      )
+    ) {
+      throw new Error('holdCash contradicts deployment directive.');
     }
   });
 
