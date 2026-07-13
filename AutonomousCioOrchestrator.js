@@ -8,6 +8,9 @@ function foRunAutonomousCioOrchestrator() {
   const runId = foNowId_('CIO-RUN');
   const startedAt = new Date();
 
+  PropertiesService.getScriptProperties()
+    .setProperty('FO_ACTIVE_RUN_ID', runId);
+
   try {
     foInfo_(module, 'Start', 'Autonomous CIO orchestration started. Run ID: ' + runId);
 
@@ -52,6 +55,9 @@ function foRunAutonomousCioOrchestrator() {
   } catch (error) {
     foError_(module, 'Failure', error);
     throw error;
+  } finally {
+    PropertiesService.getScriptProperties()
+      .deleteProperty('FO_ACTIVE_RUN_ID');
   }
 }
 
