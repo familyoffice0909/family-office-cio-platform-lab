@@ -480,8 +480,32 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     ];
   });
 
+  const currentPriceColumn = headers.indexOf('Current Price') + 1;
+  const targetEntryPriceColumn = headers.indexOf('Target Entry Price') + 1;
+
+  if (currentPriceColumn < 1 || targetEntryPriceColumn < 1) {
+    throw new Error(
+      'Decision-support price columns are missing from the output contract.'
+    );
+  }
+
+  // clearContents() preserves cell formatting. Earlier date formatting caused
+  // valid numeric price serials to be returned as JavaScript Date objects.
+  sheet.getRange(
+    2,
+    currentPriceColumn,
+    Math.max(rows.length, 1),
+    2
+  ).setNumberFormat('#,##0.00');
+
   if (rows.length) {
     sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    sheet.getRange(
+      2,
+      currentPriceColumn,
+      rows.length,
+      2
+    ).setNumberFormat('#,##0.00');
   }
 
   sheet.setFrozenRows(1);
@@ -641,12 +665,64 @@ function foRunInvestmentDecisionSupportSmokeTest() {
     'Materiality Drivers',
     'Trend',
     'Allocation Band',
-    'Priority Score'
+    'Priority Score',
+    'Current Price',
+    'Target Entry Price'
   ].forEach(function(name) {
     if (headers.indexOf(name) === -1) {
       throw new Error('Missing decision-support column: ' + name);
     }
   });
 
+  foValidateDecisionSupportPriceIntegrityWave321_(sheet, headers);
+
   return result;
+}
+
+function foValidateDecisionSupportPriceIntegrityWave321_(sheet, headers) {
+  const currentPriceColumn = headers.indexOf('Current Price') + 1;
+  const targetEntryPriceColumn = headers.indexOf('Target Entry Price') + 1;
+  const rowCount = Math.max(sheet.getLastRow() - 1, 0);
+
+  if (!rowCount) {
+    throw new Error('Investment Decision Support contains no price rows.');
+  }
+
+  const priceRange = sheet.getRange(2, currentPriceColumn, rowCount, 2);
+  const priceValues = priceRange.getValues();
+  const numberFormats = priceRange.getNumberFormats();
+
+  priceValues.forEach(function(row, rowIndex) {
+    row.forEach(function(value, columnIndex) {
+      const label = columnIndex === 0 ? 'Current Price' : 'Target Entry Price';
+      const sheetRow = rowIndex + 2;
+
+      if (value instanceof Date) {
+        throw new Error(label + ' contains Date object at row ' + sheetRow);
+      }
+
+      if (value !== '' && value !== null && typeof value !== 'number') {
+        throw new Error(
+          label + ' is not numeric at row ' + sheetRow + ': ' + typeof value
+        );
+      }
+
+      if (typeof value === 'number' && (!isFinite(value) || value < 0)) {
+        throw new Error(label + ' contains invalid numeric value at row ' + sheetRow);
+      }
+
+      const format = String(numberFormats[rowIndex][columnIndex] || '').toLowerCase();
+      if (format.indexOf('yy') >= 0 || format.indexOf('dd') >= 0) {
+        throw new Error(
+          label + ' retains date formatting at row ' + sheetRow + ': ' + format
+        );
+      }
+    });
+  });
+
+  return {
+    status: 'PASS',
+    rowsValidated: rowCount,
+    priceColumnsValidated: 2
+  };
 }
