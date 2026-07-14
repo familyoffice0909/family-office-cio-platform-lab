@@ -21,8 +21,10 @@
  *
  * Existing upstream dependencies:
  * - Sector Exposure
- * - Country Exposure
  * - Currency Exposure
+ *
+ * Risk-owned exposure output:
+ * - Country Exposure
  */
 
 const FO_PORTFOLIO_RISK_CONTRACTS_A211 = {
@@ -62,6 +64,18 @@ const FO_PORTFOLIO_RISK_CONTRACTS_A211 = {
     'Risk Level',
     'Primary Risk Driver',
     'Recommendation',
+    'Platform Version',
+    'Baseline'
+  ],
+  COUNTRY_EXPOSURE: [
+    'Run ID',
+    'Timestamp',
+    'Country',
+    'Market Value',
+    'Portfolio Weight %',
+    'Position Count',
+    'Tickers',
+    'Data Quality Status',
     'Platform Version',
     'Baseline'
   ],
@@ -136,18 +150,6 @@ const FO_PORTFOLIO_RISK_EXPOSURE_DEPENDENCIES_A211 = [
     ]
   },
   {
-    sheetName: FO_SHEETS.COUNTRY_EXPOSURE,
-    dimension: 'Country',
-    requiredHeaders: [
-      'Timestamp',
-      'Group',
-      'Market Value',
-      'Portfolio Weight',
-      'Platform Version',
-      'Baseline'
-    ]
-  },
-  {
     sheetName: FO_SHEETS.CURRENCY_EXPOSURE,
     dimension: 'Currency',
     requiredHeaders: [
@@ -196,6 +198,7 @@ function foSetupPortfolioRiskArchitecture() {
     status: 'SUCCESS',
     ownedWorksheetsEnsured: ownedDefinitions.length,
     exposureDependenciesValidated: dependencies.length,
+    countryExposureOwnership: 'Portfolio Risk',
     exposureDependencies: dependencies,
     riskLimitsSeeded: foCountPopulatedRowsA211_(
       dashboard.getSheetByName(FO_SHEETS.RISK_LIMITS)
@@ -218,6 +221,10 @@ function foPortfolioRiskOwnedDefinitionsA211_() {
     [
       FO_SHEETS.POSITION_RISK,
       FO_PORTFOLIO_RISK_CONTRACTS_A211.POSITION_RISK
+    ],
+    [
+      FO_SHEETS.COUNTRY_EXPOSURE,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.COUNTRY_EXPOSURE
     ],
     [
       FO_SHEETS.RISK_LIMITS,
@@ -589,7 +596,7 @@ function foRunPortfolioRiskArchitectureSmokeTest() {
     riskLimits: riskLimitCount,
     stressScenarios: scenarioCount,
     calculationsImplemented: false,
-    correctedWave: 'A2.1.1',
+    correctedWave: 'A2.1.2',
     nextWave: 'A2.2 — Position Risk Engine'
   };
 }
