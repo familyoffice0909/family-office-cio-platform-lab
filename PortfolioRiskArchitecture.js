@@ -5,7 +5,27 @@
  * It does not calculate portfolio risk. Calculation engines begin in A2.2.
  */
 
-const FO_PORTFOLIO_RISK_CONTRACTS_A21 = {
+/**
+ * Wave A2.1.1 — Portfolio Risk Architecture Integration.
+ *
+ * Corrects A2.1 so that the Portfolio Risk Engine consumes the existing
+ * exposure-attribution worksheets instead of attempting to replace them.
+ *
+ * New risk-owned worksheets:
+ * - Portfolio Risk
+ * - Position Risk
+ * - Risk Limits
+ * - Stress Scenarios
+ * - Risk Dashboard
+ * - Risk History
+ *
+ * Existing upstream dependencies:
+ * - Sector Exposure
+ * - Country Exposure
+ * - Currency Exposure
+ */
+
+const FO_PORTFOLIO_RISK_CONTRACTS_A211 = {
   PORTFOLIO_RISK: [
     'Run ID',
     'Timestamp',
@@ -42,39 +62,6 @@ const FO_PORTFOLIO_RISK_CONTRACTS_A21 = {
     'Risk Level',
     'Primary Risk Driver',
     'Recommendation',
-    'Platform Version',
-    'Baseline'
-  ],
-  SECTOR_EXPOSURE: [
-    'Run ID',
-    'Timestamp',
-    'Sector',
-    'Market Value',
-    'Portfolio Weight %',
-    'Limit %',
-    'Limit Status',
-    'Platform Version',
-    'Baseline'
-  ],
-  COUNTRY_EXPOSURE: [
-    'Run ID',
-    'Timestamp',
-    'Country',
-    'Market Value',
-    'Portfolio Weight %',
-    'Limit %',
-    'Limit Status',
-    'Platform Version',
-    'Baseline'
-  ],
-  CURRENCY_EXPOSURE: [
-    'Run ID',
-    'Timestamp',
-    'Currency',
-    'Market Value',
-    'Portfolio Weight %',
-    'Limit %',
-    'Limit Status',
     'Platform Version',
     'Baseline'
   ],
@@ -135,52 +122,123 @@ const FO_PORTFOLIO_RISK_CONTRACTS_A21 = {
   ]
 };
 
+const FO_PORTFOLIO_RISK_EXPOSURE_DEPENDENCIES_A211 = [
+  {
+    sheetName: FO_SHEETS.SECTOR_EXPOSURE,
+    dimension: 'Sector',
+    requiredHeaders: [
+      'Timestamp',
+      'Group',
+      'Market Value',
+      'Portfolio Weight',
+      'Platform Version',
+      'Baseline'
+    ]
+  },
+  {
+    sheetName: FO_SHEETS.COUNTRY_EXPOSURE,
+    dimension: 'Country',
+    requiredHeaders: [
+      'Timestamp',
+      'Group',
+      'Market Value',
+      'Portfolio Weight',
+      'Platform Version',
+      'Baseline'
+    ]
+  },
+  {
+    sheetName: FO_SHEETS.CURRENCY_EXPOSURE,
+    dimension: 'Currency',
+    requiredHeaders: [
+      'Timestamp',
+      'Group',
+      'Market Value',
+      'Portfolio Weight',
+      'Platform Version',
+      'Baseline'
+    ]
+  }
+];
+
 function foSetupPortfolioRiskArchitecture() {
   const module = 'PortfolioRiskArchitecture';
   const dashboard = foDashboard_();
 
-  foInfo_(module, 'Start', 'Portfolio Risk architecture setup started.');
+  foInfo_(
+    module,
+    'Start',
+    'Portfolio Risk architecture integration setup started.'
+  );
 
-  const definitions = [
-    [FO_SHEETS.PORTFOLIO_RISK, FO_PORTFOLIO_RISK_CONTRACTS_A21.PORTFOLIO_RISK],
-    [FO_SHEETS.POSITION_RISK, FO_PORTFOLIO_RISK_CONTRACTS_A21.POSITION_RISK],
-    [FO_SHEETS.SECTOR_EXPOSURE, FO_PORTFOLIO_RISK_CONTRACTS_A21.SECTOR_EXPOSURE],
-    [FO_SHEETS.COUNTRY_EXPOSURE, FO_PORTFOLIO_RISK_CONTRACTS_A21.COUNTRY_EXPOSURE],
-    [FO_SHEETS.CURRENCY_EXPOSURE, FO_PORTFOLIO_RISK_CONTRACTS_A21.CURRENCY_EXPOSURE],
-    [FO_SHEETS.RISK_LIMITS, FO_PORTFOLIO_RISK_CONTRACTS_A21.RISK_LIMITS],
-    [FO_SHEETS.STRESS_SCENARIOS, FO_PORTFOLIO_RISK_CONTRACTS_A21.STRESS_SCENARIOS],
-    [FO_SHEETS.RISK_DASHBOARD, FO_PORTFOLIO_RISK_CONTRACTS_A21.RISK_DASHBOARD],
-    [FO_SHEETS.RISK_HISTORY, FO_PORTFOLIO_RISK_CONTRACTS_A21.RISK_HISTORY]
-  ];
+  const ownedDefinitions = foPortfolioRiskOwnedDefinitionsA211_();
 
-  definitions.forEach(function(definition) {
-    foEnsureRiskContractSheetA21_(
+  ownedDefinitions.forEach(function(definition) {
+    foEnsureRiskContractSheetA211_(
       dashboard,
       definition[0],
       definition[1]
     );
   });
 
-  foSeedDefaultRiskLimitsA21_(dashboard);
-  foSeedDefaultStressScenariosA21_(dashboard);
+  const dependencies = foValidateExposureDependenciesA211_(dashboard);
 
-  foInfo_(module, 'Complete', 'Portfolio Risk architecture setup completed.');
+  foSeedDefaultRiskLimitsA211_(dashboard);
+  foSeedDefaultStressScenariosA211_(dashboard);
+
+  foInfo_(
+    module,
+    'Complete',
+    'Portfolio Risk architecture integration setup completed.'
+  );
 
   return {
     status: 'SUCCESS',
-    worksheetsEnsured: definitions.length,
-    riskLimitsSeeded: foCountPopulatedRowsA21_(
+    ownedWorksheetsEnsured: ownedDefinitions.length,
+    exposureDependenciesValidated: dependencies.length,
+    exposureDependencies: dependencies,
+    riskLimitsSeeded: foCountPopulatedRowsA211_(
       dashboard.getSheetByName(FO_SHEETS.RISK_LIMITS)
     ),
-    stressScenariosSeeded: foCountPopulatedRowsA21_(
+    stressScenariosSeeded: foCountPopulatedRowsA211_(
       dashboard.getSheetByName(FO_SHEETS.STRESS_SCENARIOS)
     ),
+    calculationsImplemented: false,
     platformVersion: FO_CONFIG.PLATFORM_VERSION,
     baseline: FO_CONFIG.BASELINE
   };
 }
 
-function foEnsureRiskContractSheetA21_(spreadsheet, name, headers) {
+function foPortfolioRiskOwnedDefinitionsA211_() {
+  return [
+    [
+      FO_SHEETS.PORTFOLIO_RISK,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.PORTFOLIO_RISK
+    ],
+    [
+      FO_SHEETS.POSITION_RISK,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.POSITION_RISK
+    ],
+    [
+      FO_SHEETS.RISK_LIMITS,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.RISK_LIMITS
+    ],
+    [
+      FO_SHEETS.STRESS_SCENARIOS,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.STRESS_SCENARIOS
+    ],
+    [
+      FO_SHEETS.RISK_DASHBOARD,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.RISK_DASHBOARD
+    ],
+    [
+      FO_SHEETS.RISK_HISTORY,
+      FO_PORTFOLIO_RISK_CONTRACTS_A211.RISK_HISTORY
+    ]
+  ];
+}
+
+function foEnsureRiskContractSheetA211_(spreadsheet, name, headers) {
   const sheet = spreadsheet.getSheetByName(name);
 
   if (!sheet) {
@@ -205,7 +263,7 @@ function foEnsureRiskContractSheetA21_(spreadsheet, name, headers) {
 
   if (!matches) {
     throw new Error(
-      'Risk contract mismatch for "' +
+      'Risk-owned contract mismatch for "' +
         name +
         '". Expected: ' +
         JSON.stringify(headers) +
@@ -217,9 +275,51 @@ function foEnsureRiskContractSheetA21_(spreadsheet, name, headers) {
   return sheet;
 }
 
-function foSeedDefaultRiskLimitsA21_(dashboard) {
+function foValidateExposureDependenciesA211_(dashboard) {
+  return FO_PORTFOLIO_RISK_EXPOSURE_DEPENDENCIES_A211.map(
+    function(dependency) {
+      const sheet = dashboard.getSheetByName(dependency.sheetName);
+
+      if (!sheet) {
+        throw new Error(
+          'Required exposure dependency missing: ' +
+            dependency.sheetName
+        );
+      }
+
+      const actual = foGetSheetHeaders_(sheet);
+      const missing = dependency.requiredHeaders.filter(
+        function(header) {
+          return actual.indexOf(header) < 0;
+        }
+      );
+
+      if (missing.length) {
+        throw new Error(
+          'Exposure dependency contract invalid for "' +
+            dependency.sheetName +
+            '". Missing: ' +
+            JSON.stringify(missing) +
+            ' Actual: ' +
+            JSON.stringify(actual)
+        );
+      }
+
+      return {
+        worksheet: dependency.sheetName,
+        dimension: dependency.dimension,
+        status: 'PASS',
+        columns: actual.length,
+        rows: Math.max(sheet.getLastRow() - 1, 0),
+        ownership: 'Portfolio Exposure Attribution'
+      };
+    }
+  );
+}
+
+function foSeedDefaultRiskLimitsA211_(dashboard) {
   const sheet = dashboard.getSheetByName(FO_SHEETS.RISK_LIMITS);
-  const existing = foReadFirstColumnValuesA21_(sheet);
+  const existing = foReadFirstColumnValuesA211_(sheet);
 
   const rows = [
     [
@@ -301,9 +401,9 @@ function foSeedDefaultRiskLimitsA21_(dashboard) {
   });
 }
 
-function foSeedDefaultStressScenariosA21_(dashboard) {
+function foSeedDefaultStressScenariosA211_(dashboard) {
   const sheet = dashboard.getSheetByName(FO_SHEETS.STRESS_SCENARIOS);
-  const existing = foReadFirstColumnValuesA21_(sheet);
+  const existing = foReadFirstColumnValuesA211_(sheet);
 
   const rows = [
     [
@@ -393,7 +493,7 @@ function foSeedDefaultStressScenariosA21_(dashboard) {
   });
 }
 
-function foReadFirstColumnValuesA21_(sheet) {
+function foReadFirstColumnValuesA211_(sheet) {
   const result = {};
 
   if (!sheet || sheet.getLastRow() < 2) {
@@ -413,83 +513,83 @@ function foReadFirstColumnValuesA21_(sheet) {
   return result;
 }
 
-function foCountPopulatedRowsA21_(sheet) {
+function foCountPopulatedRowsA211_(sheet) {
   return sheet ? Math.max(sheet.getLastRow() - 1, 0) : 0;
 }
 
 function foRunPortfolioRiskArchitectureSmokeTest() {
   const setup = foSetupPortfolioRiskArchitecture();
   const dashboard = foDashboard_();
-  const checks = [];
+  const ownedChecks = [];
 
-  const definitions = [
-    [FO_SHEETS.PORTFOLIO_RISK, FO_PORTFOLIO_RISK_CONTRACTS_A21.PORTFOLIO_RISK],
-    [FO_SHEETS.POSITION_RISK, FO_PORTFOLIO_RISK_CONTRACTS_A21.POSITION_RISK],
-    [FO_SHEETS.SECTOR_EXPOSURE, FO_PORTFOLIO_RISK_CONTRACTS_A21.SECTOR_EXPOSURE],
-    [FO_SHEETS.COUNTRY_EXPOSURE, FO_PORTFOLIO_RISK_CONTRACTS_A21.COUNTRY_EXPOSURE],
-    [FO_SHEETS.CURRENCY_EXPOSURE, FO_PORTFOLIO_RISK_CONTRACTS_A21.CURRENCY_EXPOSURE],
-    [FO_SHEETS.RISK_LIMITS, FO_PORTFOLIO_RISK_CONTRACTS_A21.RISK_LIMITS],
-    [FO_SHEETS.STRESS_SCENARIOS, FO_PORTFOLIO_RISK_CONTRACTS_A21.STRESS_SCENARIOS],
-    [FO_SHEETS.RISK_DASHBOARD, FO_PORTFOLIO_RISK_CONTRACTS_A21.RISK_DASHBOARD],
-    [FO_SHEETS.RISK_HISTORY, FO_PORTFOLIO_RISK_CONTRACTS_A21.RISK_HISTORY]
-  ];
+  foPortfolioRiskOwnedDefinitionsA211_().forEach(
+    function(definition) {
+      const sheet = dashboard.getSheetByName(definition[0]);
+      const actual = sheet ? foGetSheetHeaders_(sheet) : [];
+      const expected = definition[1];
 
-  definitions.forEach(function(definition) {
-    const sheet = dashboard.getSheetByName(definition[0]);
-    const actual = foGetSheetHeaders_(sheet);
-    const expected = definition[1];
+      if (!sheet) {
+        throw new Error(
+          'Missing risk-owned worksheet: ' + definition[0]
+        );
+      }
 
-    if (!sheet) {
-      throw new Error('Missing risk worksheet: ' + definition[0]);
+      if (
+        actual.length !== expected.length ||
+        !expected.every(function(header, index) {
+          return actual[index] === header;
+        })
+      ) {
+        throw new Error(
+          'Invalid risk-owned contract for ' +
+            definition[0] +
+            ': ' +
+            JSON.stringify(actual)
+        );
+      }
+
+      ownedChecks.push({
+        worksheet: definition[0],
+        status: 'PASS',
+        columns: actual.length,
+        ownership: 'Portfolio Risk'
+      });
     }
+  );
 
-    if (
-      actual.length !== expected.length ||
-      !expected.every(function(header, index) {
-        return actual[index] === header;
-      })
-    ) {
-      throw new Error(
-        'Invalid risk contract for ' +
-          definition[0] +
-          ': ' +
-          JSON.stringify(actual)
-      );
-    }
+  const dependencyChecks =
+    foValidateExposureDependenciesA211_(dashboard);
 
-    checks.push({
-      worksheet: definition[0],
-      status: 'PASS',
-      columns: actual.length
-    });
-  });
-
-  const riskLimitCount = foCountPopulatedRowsA21_(
+  const riskLimitCount = foCountPopulatedRowsA211_(
     dashboard.getSheetByName(FO_SHEETS.RISK_LIMITS)
   );
-  const scenarioCount = foCountPopulatedRowsA21_(
+  const scenarioCount = foCountPopulatedRowsA211_(
     dashboard.getSheetByName(FO_SHEETS.STRESS_SCENARIOS)
   );
 
   if (riskLimitCount < 5) {
     throw new Error(
-      'Expected at least 5 default risk limits; found ' + riskLimitCount
+      'Expected at least 5 default risk limits; found ' +
+        riskLimitCount
     );
   }
 
   if (scenarioCount < 6) {
     throw new Error(
-      'Expected at least 6 default stress scenarios; found ' + scenarioCount
+      'Expected at least 6 default stress scenarios; found ' +
+        scenarioCount
     );
   }
 
   return {
     status: 'PASS',
     setup: setup,
-    worksheetChecks: checks,
+    riskOwnedWorksheetChecks: ownedChecks,
+    exposureDependencyChecks: dependencyChecks,
     riskLimits: riskLimitCount,
     stressScenarios: scenarioCount,
     calculationsImplemented: false,
+    correctedWave: 'A2.1.1',
     nextWave: 'A2.2 — Position Risk Engine'
   };
 }
