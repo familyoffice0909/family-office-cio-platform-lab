@@ -340,3 +340,145 @@ function foRunPositionRiskHelperDiagnosticA222() {
   Logger.log(JSON.stringify(result));
   return result;
 }
+
+
+function foA22EnsureSheet_(spreadsheet, sheetName, headers) {
+  if (!spreadsheet) {
+    throw new Error('A2.2.3 ensure-sheet helper received no spreadsheet.');
+  }
+
+  let sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(sheetName);
+  }
+
+  const currentHeaders = sheet.getLastColumn() > 0
+    ? sheet.getRange(
+        1,
+        1,
+        1,
+        Math.max(sheet.getLastColumn(), headers.length)
+      ).getDisplayValues()[0].slice(0, headers.length)
+    : [];
+
+  if (
+    !sheet.getLastRow() ||
+    currentHeaders.join('|') !== headers.join('|')
+  ) {
+    sheet.clear();
+    sheet.getRange(
+      1,
+      1,
+      1,
+      headers.length
+    ).setValues([headers]);
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.getRange(
+    1,
+    1,
+    1,
+    headers.length
+  ).setFontWeight('bold');
+
+  return sheet;
+}
+
+
+function foA22ReplaceData_(sheet, rows) {
+  if (!sheet) {
+    throw new Error('A2.2.3 replace-data helper received no worksheet.');
+  }
+
+  const lastColumn = sheet.getLastColumn();
+  if (lastColumn < 1) {
+    throw new Error(
+      'A2.2.3 replace-data helper cannot preserve headers: worksheet has no columns.'
+    );
+  }
+
+  const headers = sheet.getRange(
+    1,
+    1,
+    1,
+    lastColumn
+  ).getValues();
+
+  sheet.clearContents();
+  sheet.getRange(
+    1,
+    1,
+    1,
+    headers[0].length
+  ).setValues(headers);
+
+  if (rows && rows.length) {
+    sheet.getRange(
+      2,
+      1,
+      rows.length,
+      rows[0].length
+    ).setValues(rows);
+  }
+
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, sheet.getLastColumn());
+}
+
+
+function foA22AppendRows_(sheet, rows) {
+  if (!sheet) {
+    throw new Error('A2.2.3 append helper received no worksheet.');
+  }
+
+  if (!rows || !rows.length) return;
+
+  sheet.getRange(
+    sheet.getLastRow() + 1,
+    1,
+    rows.length,
+    rows[0].length
+  ).setValues(rows);
+}
+
+
+function foA22SchemaMatches_(sheet, expectedHeaders) {
+  if (
+    !sheet ||
+    sheet.getLastColumn() < expectedHeaders.length
+  ) {
+    return false;
+  }
+
+  const actualHeaders = sheet.getRange(
+    1,
+    1,
+    1,
+    expectedHeaders.length
+  ).getDisplayValues()[0];
+
+  return actualHeaders.join('|') === expectedHeaders.join('|');
+}
+
+
+function foRunPositionRiskOutputHelperDiagnosticA223() {
+  const tests = {
+    ensureSheet: typeof foA22EnsureSheet_ === 'function',
+    replaceData: typeof foA22ReplaceData_ === 'function',
+    appendRows: typeof foA22AppendRows_ === 'function',
+    schemaMatches: typeof foA22SchemaMatches_ === 'function'
+  };
+
+  const missing = Object.keys(tests).filter(function(key) {
+    return !tests[key];
+  });
+
+  const result = {
+    status: missing.length ? 'FAIL' : 'PASS',
+    missingFunctions: missing
+  };
+
+  Logger.log(JSON.stringify(result));
+  return result;
+}
