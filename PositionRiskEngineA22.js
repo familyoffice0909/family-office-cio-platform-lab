@@ -78,52 +78,43 @@ function foCalculatePositionRiskA22(runId) {
 }
 
 function foCalculatePortfolioRiskA22(runId, positions) {
-  runId = runId || foA22RunId_();
-  const ss = foDashboard_();
-  if (!positions || !positions.length) positions = foA22ReadPositionRisk_(ss);
-  if (!positions.length) throw new Error('Position Risk is empty.');
-
-  const total = positions.reduce((s,p)=>s+p.marketValue,0);
-  const byWeight = positions.slice().sort((a,b)=>b.weight-a.weight);
-  const largest = byWeight[0].weight;
-  const top5 = byWeight.slice(0,5).reduce((s,p)=>s+p.weight,0);
-  const sector = foA22MaxGroup_(positions,'sector');
-  const currency = foA22MaxGroup_(positions,'currency');
-  const weightedRisk = positions.reduce((s,p)=>s+p.riskScore*p.weight/100,0);
-  const weightedDQ = positions.reduce((s,p)=>s+p.dataQuality*p.weight/100,0);
-  const diversification = foA22Diversification_(positions.length,largest,top5,sector,currency);
-  const stress = foA22Stress_(positions,largest,sector);
-  const score = foA22Round_(foA22Clamp_(
-    weightedRisk*.50 + foA22Scale_(largest,20)*.18 + foA22Scale_(top5,75)*.10 +
-    foA22Scale_(sector,50)*.10 + foA22Scale_(currency,80)*.05 + (100-weightedDQ)*.07,
-    0,100),1);
-
-  const portfolio = {
-    runId,
-    timestamp:new Date(),
-    portfolioValue:foA22Round_(total,2),
-    riskScore:score,
-    diversificationScore:diversification,
-    largestPositionPct:foA22Round_(largest,2),
-    top5Pct:foA22Round_(top5,2),
-    sectorConcentrationPct:foA22Round_(sector,2),
-    currencyConcentrationPct:foA22Round_(currency,2),
-    stressTestScore:stress,
-    overallRisk:foA22Level_(score),
-    recommendation:foA22PortfolioRecommendation_(score,diversification,largest,top5,sector,currency,weightedDQ)
-  };
-
-  const row = [[
-    portfolio.runId,portfolio.timestamp,portfolio.portfolioValue,portfolio.riskScore,
-    portfolio.diversificationScore,portfolio.largestPositionPct,portfolio.top5Pct,
-    portfolio.sectorConcentrationPct,portfolio.currencyConcentrationPct,
-    portfolio.stressTestScore,portfolio.overallRisk,portfolio.recommendation,
-    FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE
-  ]];
-
-  foA22Replace_(foA22Ensure_(ss,'Portfolio Risk',FO_A22_PORTFOLIO_HEADERS), row);
-  foA22Append_(foA22Ensure_(ss,'Risk History',FO_A22_PORTFOLIO_HEADERS), row);
-  return {status:'SUCCESS', runId, portfolio};
+  runId = runId || foA22NewRunId_();
+  const dashboard = foDashboard_();
+  if (!positions || !positions.length) positions = foA22ReadLatestPositionRisk_(dashboard);
+  if (!positions || !positions.length) throw new Error('A2.2.1: no position-risk records.');
+  const normalized=positions.map(function(p){ return {
+    runId:foA22Text_(p.runId), ticker:foA22Text_(p.ticker)||'UNKNOWN', account:foA22Text_(p.account)||'Unknown',
+    marketValue:foA22FiniteNumber_(p.marketValue,0,'marketValue '+p.ticker),
+    portfolioWeightPct:foA22FiniteNumber_(p.portfolioWeightPct,0,'weight '+p.ticker),
+    riskScore:foA22FiniteNumber_(p.riskScore,0,'riskScore '+p.ticker),
+    dataQualityScore:foA22FiniteNumber_(p.dataQualityScore,0,'dataQuality '+p.ticker),
+    sector:foA22Text_(p.sector)||'Unknown', currency:foA22Text_(p.currency)||'Unknown',
+    riskRating:foA22Text_(p.riskRating), notes:foA22Text_(p.notes)
+  };});
+  const totalValue=normalized.reduce(function(s,p){return s+p.marketValue;},0);
+  if (!Number.isFinite(totalValue)||totalValue<=0) throw new Error('A2.2.1 invalid portfolio value: '+totalValue);
+  normalized.forEach(function(p){p.portfolioWeightPct=foA22Round_(p.marketValue/totalValue*100,4);});
+  const sorted=normalized.slice().sort(function(a,b){return b.portfolioWeightPct-a.portfolioWeightPct;});
+  const largest=foA22FiniteNumber_(sorted[0].portfolioWeightPct,0,'largest');
+  const top5=sorted.slice(0,5).reduce(function(s,p){return s+p.portfolioWeightPct;},0);
+  const sector=foA22SafeMaxGroupWeight_(normalized,'sector');
+  const currency=foA22SafeMaxGroupWeight_(normalized,'currency');
+  const weightedRisk=normalized.reduce(function(s,p){return s+p.riskScore*(p.portfolioWeightPct/100);},0);
+  const avgDQ=normalized.reduce(function(s,p){return s+p.dataQualityScore*(p.portfolioWeightPct/100);},0);
+  const diversification=foA22DiversificationScore_(normalized.length,largest,top5,sector,currency);
+  const stress=foA22StressScore_(normalized,largest,sector);
+  const inputs={totalValue:totalValue,largestPositionPct:largest,top5Pct:top5,sectorConcentrationPct:sector,currencyConcentrationPct:currency,weightedPositionRisk:weightedRisk,averageDataQuality:avgDQ,diversificationScore:diversification,stressTestScore:stress};
+  Object.keys(inputs).forEach(function(k){if(!Number.isFinite(Number(inputs[k]))) throw new Error('A2.2.1 non-finite input '+k+'='+inputs[k]);});
+  Logger.log('A2.2.1 portfolio inputs: '+JSON.stringify(inputs));
+  const score=foA22Round_(foA22Clamp_(weightedRisk*0.50+foA22ScaleTo100_(largest,20)*0.18+foA22ScaleTo100_(top5,75)*0.10+foA22ScaleTo100_(sector,50)*0.10+foA22ScaleTo100_(currency,80)*0.05+(100-avgDQ)*0.07,0,100),1);
+  const level=foA22RiskLevel_(score);
+  if(level==='UNAVAILABLE') throw new Error('A2.2.1 unable to classify score.');
+  const rec=foA22PortfolioRecommendation_({riskScore:score,diversificationScore:diversification,largestPositionPct:largest,top5Pct:top5,sectorConcentrationPct:sector,currencyConcentrationPct:currency,averageDataQuality:avgDQ});
+  const portfolio={runId:runId,timestamp:new Date(),portfolioValue:foA22Round_(totalValue,2),riskScore:score,diversificationScore:foA22Round_(diversification,1),largestPositionPct:foA22Round_(largest,2),top5Pct:foA22Round_(top5,2),sectorConcentrationPct:foA22Round_(sector,2),currencyConcentrationPct:foA22Round_(currency,2),stressTestScore:foA22Round_(stress,1),overallRisk:level,recommendation:rec};
+  const row=[[portfolio.runId,portfolio.timestamp,portfolio.portfolioValue,portfolio.riskScore,portfolio.diversificationScore,portfolio.largestPositionPct,portfolio.top5Pct,portfolio.sectorConcentrationPct,portfolio.currencyConcentrationPct,portfolio.stressTestScore,portfolio.overallRisk,portfolio.recommendation,FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE]];
+  foA22ReplaceData_(foA22EnsureSheet_(dashboard,'Portfolio Risk',FO_A22_PORTFOLIO_RISK_HEADERS),row);
+  foA22AppendRows_(foA22EnsureSheet_(dashboard,'Risk History',FO_A22_RISK_HISTORY_HEADERS),row);
+  return {status:'SUCCESS',runId:runId,portfolio:portfolio};
 }
 
 function foBuildRiskDashboardA22(runId, portfolio, positions) {
@@ -224,6 +215,68 @@ function foA22Map_(h){return h.reduce((m,x,i)=>(m[String(x).trim()]=i,m),{});}
 function foA22Cell_(r,h,k){return h[k]===undefined?'':r[h[k]];}
 function foA22Text_(v){return String(v===null||v===undefined?'':v).trim();}
 function foA22Num_(v){if(typeof v==='number')return isFinite(v)?v:0;const n=Number(String(v||'').replace(/[$,%\s]/g,'').replace(/,/g,''));return isFinite(n)?n:0;}
-function foA22Round_(v,d){const f=Math.pow(10,d||0);return Math.round(v*f)/f;}
-function foA22Clamp_(v,a,b){return Math.min(b,Math.max(a,v));}
+function foA22Round_(value, decimals) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+  const places = Number.isFinite(Number(decimals)) ? Number(decimals) : 0;
+  const factor = Math.pow(10, places);
+  return Math.round(numericValue * factor) / factor;
+}
+function foA22Clamp_(value, minValue, maxValue) {
+  const n=Number(value), min=Number(minValue), max=Number(maxValue);
+  if (![n,min,max].every(Number.isFinite)) throw new Error('A2.2.1 clamp received non-finite input.');
+  return Math.min(max, Math.max(min, n));
+}
 function foA22Scale_(v,b){return foA22Clamp_(v/b*100,0,100);}
+
+
+function foA22FiniteNumber_(value, fallback, fieldName) {
+  const fb=Number.isFinite(Number(fallback))?Number(fallback):0;
+  let n;
+  if (typeof value === 'number') n=value; else {
+    const cleaned=String(value===null||value===undefined?'':value).replace(/[$,%\s]/g,'').replace(/,/g,'');
+    n=cleaned===''?fb:Number(cleaned);
+  }
+  if (!Number.isFinite(n)) { Logger.log('A2.2.1 substituted non-finite value for '+(fieldName||'field')+': '+value); return fb; }
+  return n;
+}
+
+function foA22SafeMaxGroupWeight_(positions, fieldName) {
+  const groups={};
+  positions.forEach(function(p){ const k=foA22Text_(p[fieldName])||'Unknown'; groups[k]=(groups[k]||0)+foA22FiniteNumber_(p.portfolioWeightPct,0,fieldName+' '+p.ticker); });
+  return foA22Round_(Object.keys(groups).reduce(function(m,k){ return Math.max(m,foA22FiniteNumber_(groups[k],0,k)); },0),4);
+}
+
+
+function foA22Number_(value) {
+  return foA22FiniteNumber_(value, 0);
+}
+
+
+function foA22ScaleTo100_(value, breachValue) {
+  const n=Number(value), b=Number(breachValue);
+  if (!Number.isFinite(n)||!Number.isFinite(b)||b<=0) throw new Error('A2.2.1 scale received invalid input.');
+  return foA22Clamp_(n / b * 100, 0, 100);
+}
+
+
+function foA22RiskLevel_(score) {
+  const n=Number(score);
+  if (!Number.isFinite(n)) return 'UNAVAILABLE';
+  if (n>=75) return 'CRITICAL';
+  if (n>=55) return 'HIGH';
+  if (n>=35) return 'MODERATE';
+  return 'LOW';
+}
+
+
+function foA22MetricStatus_(metric, value) {
+  const n=Number(value);
+  if (!Number.isFinite(n)) return 'UNAVAILABLE';
+  if (metric === 'diversification') { if (n>=75) return 'GOOD'; if (n>=55) return 'REVIEW'; return 'WEAK'; }
+  const t={risk:[35,55,75],largest:[10,15,20],top5:[55,65,75],sector:[35,40,50],currency:[60,70,80]}[metric] || [35,55,75];
+  if (n>=t[2]) return 'CRITICAL';
+  if (n>=t[1]) return 'HIGH';
+  if (n>=t[0]) return 'REVIEW';
+  return 'PASS';
+}
