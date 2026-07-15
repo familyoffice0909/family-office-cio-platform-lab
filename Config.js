@@ -58,8 +58,12 @@ const FO_SHEETS = {
   STRESS_SCENARIOS: 'Stress Scenarios',
   RISK_DASHBOARD: 'Risk Dashboard',
   RISK_HISTORY: 'Risk History',
-  PORTFOLIO_RISK_VALIDATION: 'Portfolio Risk Validation'
-};
+  PORTFOLIO_RISK_VALIDATION: 'Portfolio Risk Validation',
+  ARCHITECTURE_REGISTRY: 'Architecture Registry',
+  ARCHITECTURE_DEPENDENCIES: 'Architecture Dependencies',
+  ARCHITECTURE_OWNERSHIP: 'Architecture Ownership',
+  PRODUCTION_BASELINE: 'Production Baseline',
+  ARCHITECTURE_FREEZE_VALIDATION: 'Architecture Freeze Validation'};
 
 const FO_REQUIRED_DASHBOARD_SHEETS = [
   FO_SHEETS.PORTFOLIO_MASTER,
