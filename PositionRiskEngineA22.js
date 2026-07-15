@@ -280,3 +280,63 @@ function foA22MetricStatus_(metric, value) {
   if (n>=t[0]) return 'REVIEW';
   return 'PASS';
 }
+
+
+function foA22DiversificationScore_(positionCount, largestPositionPct, top5Pct, sectorConcentrationPct, currencyConcentrationPct) {
+  const count = foA22FiniteNumber_(positionCount, 0, 'positionCount');
+  const largest = foA22FiniteNumber_(largestPositionPct, 0, 'largestPositionPct');
+  const top5 = foA22FiniteNumber_(top5Pct, 0, 'top5Pct');
+  const sector = foA22FiniteNumber_(sectorConcentrationPct, 0, 'sectorConcentrationPct');
+  const currency = foA22FiniteNumber_(currencyConcentrationPct, 0, 'currencyConcentrationPct');
+
+  let score = 100;
+  score -= Math.max(0, largest - 10) * 1.8;
+  score -= Math.max(0, top5 - 55) * 0.8;
+  score -= Math.max(0, sector - 35) * 0.8;
+  score -= Math.max(0, currency - 70) * 0.4;
+
+  if (count < 5) score -= 20;
+  else if (count < 8) score -= 10;
+  else if (count >= 12) score += 5;
+
+  return foA22Round_(foA22Clamp_(score, 0, 100), 1);
+}
+
+
+function foA22StressScore_(positions, largestPositionPct, sectorConcentrationPct) {
+  if (!positions || !positions.length) return 0;
+
+  const largest = foA22FiniteNumber_(largestPositionPct, 0, 'stress largest');
+  const sector = foA22FiniteNumber_(sectorConcentrationPct, 0, 'stress sector');
+
+  const speculativeWeight = positions.filter(function(position) {
+    const ticker = foA22Text_(position.ticker).toUpperCase();
+    const text = (foA22Text_(position.riskRating) + ' ' + foA22Text_(position.notes)).toUpperCase();
+    return ['QNC','ONE','QBTS','RGTI'].indexOf(ticker) >= 0 || text.indexOf('SPECULATIVE') >= 0;
+  }).reduce(function(sum, position) {
+    return sum + foA22FiniteNumber_(position.portfolioWeightPct, 0, 'speculative weight');
+  }, 0);
+
+  const score = 20
+    + foA22ScaleTo100_(largest, 20) * 0.30
+    + foA22ScaleTo100_(sector, 50) * 0.25
+    + foA22ScaleTo100_(speculativeWeight, 25) * 0.45;
+
+  return foA22Round_(foA22Clamp_(score, 0, 100), 1);
+}
+
+
+function foRunPositionRiskHelperDiagnosticA222() {
+  const tests = {
+    diversification: typeof foA22DiversificationScore_ === 'function',
+    stress: typeof foA22StressScore_ === 'function',
+    recommendation: typeof foA22PortfolioRecommendation_ === 'function',
+    finiteNumber: typeof foA22FiniteNumber_ === 'function',
+    safeGroupWeight: typeof foA22SafeMaxGroupWeight_ === 'function'
+  };
+
+  const missing = Object.keys(tests).filter(function(key) { return !tests[key]; });
+  const result = {status: missing.length ? 'FAIL' : 'PASS', missingFunctions: missing};
+  Logger.log(JSON.stringify(result));
+  return result;
+}
