@@ -1,0 +1,7 @@
+/** Wave A2.3.0 — Additive engine registry. */
+const FO_A230_ENGINES={};
+function foRegisterEngineA230(name,runner,metadata){const k=String(name||'').trim().toUpperCase();if(!k)throw new Error('A2.3.0 engine name is required.');if(typeof runner!=='function')throw new Error('A2.3.0 engine runner must be a function: '+k);if(FO_A230_ENGINES[k])throw new Error('A2.3.0 engine already registered: '+k);FO_A230_ENGINES[k]=Object.freeze({name:k,runner:runner,metadata:Object.freeze(metadata||{})});return FO_A230_ENGINES[k];}
+function foGetEngineA230(name){const k=String(name||'').trim().toUpperCase(),e=FO_A230_ENGINES[k];if(!e)throw new Error('A2.3.0 engine is not registered: '+k);return e;}
+function foRunEngineA230(name,context){return foGetEngineA230(name).runner(context||{});}
+function foListEnginesA230(){return Object.keys(FO_A230_ENGINES).sort().map(function(k){return{name:FO_A230_ENGINES[k].name,metadata:FO_A230_ENGINES[k].metadata};});}
+function foBootstrapEngineRegistryA230(){if(!FO_A230_ENGINES.POSITION_RISK&&typeof foRunPositionRiskEngineA22==='function')foRegisterEngineA230('POSITION_RISK',foRunPositionRiskEngineA22,{wave:'A2.2',criticality:'HIGH',outputSheets:[FO_SHEETS.POSITION_RISK,FO_SHEETS.PORTFOLIO_RISK,FO_SHEETS.RISK_DASHBOARD]});if(!FO_A230_ENGINES.PRODUCTION_CERTIFICATION&&typeof foRunProductionCertification==='function')foRegisterEngineA230('PRODUCTION_CERTIFICATION',foRunProductionCertification,{wave:'2.6.0-R2',criticality:'CRITICAL'});return foListEnginesA230();}
