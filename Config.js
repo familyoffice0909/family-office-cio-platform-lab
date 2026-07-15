@@ -64,7 +64,8 @@ const FO_SHEETS = {
   ARCHITECTURE_OWNERSHIP: 'Architecture Ownership',
   PRODUCTION_BASELINE: 'Production Baseline',
   ARCHITECTURE_FREEZE_VALIDATION: 'Architecture Freeze Validation',
-  ARCHITECTURE_REMEDIATION_VALIDATION: 'Architecture Remediation Validation'};
+  ARCHITECTURE_REMEDIATION_VALIDATION: 'Architecture Remediation Validation',
+  POSITION_RISK_VALIDATION: 'Position Risk Validation'};
 
 const FO_REQUIRED_DASHBOARD_SHEETS = [
   FO_SHEETS.PORTFOLIO_MASTER,
