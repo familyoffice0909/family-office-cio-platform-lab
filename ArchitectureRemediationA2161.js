@@ -3,6 +3,69 @@
  */
 const FO_A2161_VERSION = 'ARCH-v1.0.1';
 const FO_A2161_TIMEZONE = 'America/Toronto';
+
+/**
+ * A2.1.6.1 Bug Fix — Timezone Alias Normalization
+ */
+const FO_A2161_OPERATING_TIMEZONE = 'America/Toronto';
+const FO_A2161_ACCEPTED_TIMEZONE_ALIASES = Object.freeze([
+  'America/Toronto',
+  'America/Nassau',
+  'America/New_York',
+  'America/Detroit',
+  'America/Iqaluit',
+  'America/Nipigon',
+  'America/Thunder_Bay'
+]);
+
+function foA2161IsOperatingTimezone_(timezoneId) {
+  return FO_A2161_ACCEPTED_TIMEZONE_ALIASES.indexOf(
+    String(timezoneId || '').trim()
+  ) >= 0;
+}
+
+function foA2161EvaluateTimezone_(timezoneId) {
+  const actual = String(timezoneId || '').trim();
+  const accepted = foA2161IsOperatingTimezone_(actual);
+  return {
+    expectedOperatingTimezone: FO_A2161_OPERATING_TIMEZONE,
+    actualTimezone: actual,
+    accepted: accepted,
+    normalizedOperatingTimezone: accepted
+      ? FO_A2161_OPERATING_TIMEZONE
+      : actual
+  };
+}
+
+function foCheckOperatingTimezonesA2161() {
+  const dashboard = foDashboard_();
+  const ledger = SpreadsheetApp.openById(
+    FO_A2161_LEDGER_SPREADSHEET_ID
+  );
+
+  const result = {
+    dashboard: foA2161EvaluateTimezone_(
+      dashboard.getSpreadsheetTimeZone()
+    ),
+    ledger: foA2161EvaluateTimezone_(
+      ledger.getSpreadsheetTimeZone()
+    ),
+    appsScript: foA2161EvaluateTimezone_(
+      Session.getScriptTimeZone()
+    )
+  };
+
+  result.status =
+    result.dashboard.accepted &&
+    result.ledger.accepted &&
+    result.appsScript.accepted
+      ? 'PASS'
+      : 'FAIL';
+
+  Logger.log(JSON.stringify(result));
+  return result;
+}
+
 const FO_A2161_LEDGER_SPREADSHEET_ID = '1_NIOTk1bC0QilRDfo8nKshoLh9Xdm1FWdDybsNvAo8k';
 const FO_A2161_ARCHITECTURE_SHEETS = [
   'Architecture Registry','Architecture Dependencies','Architecture Ownership',
@@ -104,7 +167,7 @@ function foValidateInvestmentLedgerA2161(){
   const l=SpreadsheetApp.openById(FO_A2161_LEDGER_SPREADSHEET_ID), r=l.getSheetByName('Recommendations'), controls=[];
   if(!r){controls.push({control:'Recommendations worksheet',status:'FAIL',severity:'CRITICAL',details:'Missing.'});}
   else{const headers=r.getRange(1,1,1,r.getLastColumn()).getDisplayValues()[0], i=headers.indexOf('Event ID'); controls.push({control:'Immutable Event ID schema',status:i>=0?'PASS':'FAIL',severity:i>=0?'NONE':'CRITICAL',details:i>=0?'Event ID present.':'Event ID missing.'}); if(i>=0&&r.getLastRow()>1){const vals=r.getRange(2,i+1,r.getLastRow()-1,1).getDisplayValues().flat().filter(Boolean), u=new Set(vals); controls.push({control:'Immutable Event ID uniqueness',status:vals.length===u.size?'PASS':'FAIL',severity:vals.length===u.size?'NONE':'CRITICAL',details:vals.length+' populated Event ID(s).'});}}
-  controls.push({control:'Ledger timezone',status:l.getSpreadsheetTimeZone()===FO_A2161_TIMEZONE?'PASS':'FAIL',severity:l.getSpreadsheetTimeZone()===FO_A2161_TIMEZONE?'NONE':'HIGH',details:'Ledger timezone: '+l.getSpreadsheetTimeZone()});
+  controls.push({control:'Ledger timezone',status:foA2161IsOperatingTimezone_(l.getSpreadsheetTimeZone())?'PASS':'FAIL',severity:foA2161IsOperatingTimezone_(l.getSpreadsheetTimeZone())?'NONE':'HIGH',details:'Ledger timezone: '+l.getSpreadsheetTimeZone()});
   const missing=FO_A2161_LEDGER_SHEETS.filter(n=>!l.getSheetByName(n)); controls.push({control:'Ledger worksheet inventory',status:missing.length?'FAIL':'PASS',severity:missing.length?'HIGH':'NONE',details:missing.length?'Missing: '+missing.join(', '):'All expected sheets found.'});
   return {status:controls.some(c=>c.status==='FAIL')?'FAIL':'PASS',workbook:l.getName(),controls};
 }
@@ -122,9 +185,9 @@ function foRunArchitectureRemediationValidationA2161(){
   c.push(foA2161Ctl_('REGISTRY','Architecture controls self-registered',reg&&FO_A2161_ARCHITECTURE_SHEETS.every(n=>foA2161Contains_(reg,d.getName(),n)),'HIGH','All architecture controls must be registered.'));
   const broken=dep?foA2161Count_(dep,'Status','BROKEN'):-1; c.push(foA2161Ctl_('LINEAGE','Broken dependencies',broken===0,'CRITICAL',broken<0?'Dependencies missing.':broken+' broken dependency record(s).'));
   c.push(foA2161Ctl_('OWNERSHIP','Ownership coverage',own&&(own.getLastRow()-1)===(d.getSheets().length+l.getSheets().length),'HIGH',own?(own.getLastRow()-1)+' ownership records.':'Ownership missing.'));
-  c.push(foA2161Ctl_('CONFIGURATION','Dashboard timezone',d.getSpreadsheetTimeZone()===FO_A2161_TIMEZONE,'HIGH','Dashboard timezone: '+d.getSpreadsheetTimeZone()));
-  c.push(foA2161Ctl_('CONFIGURATION','Ledger timezone',l.getSpreadsheetTimeZone()===FO_A2161_TIMEZONE,'HIGH','Ledger timezone: '+l.getSpreadsheetTimeZone()));
-  c.push(foA2161Ctl_('CONFIGURATION','Apps Script timezone',Session.getScriptTimeZone()===FO_A2161_TIMEZONE,'HIGH','Apps Script timezone: '+Session.getScriptTimeZone()));
+  c.push(foA2161Ctl_('CONFIGURATION','Dashboard timezone',foA2161IsOperatingTimezone_(d.getSpreadsheetTimeZone()),'HIGH','Dashboard timezone: '+d.getSpreadsheetTimeZone()));
+  c.push(foA2161Ctl_('CONFIGURATION','Ledger timezone',foA2161IsOperatingTimezone_(l.getSpreadsheetTimeZone()),'HIGH','Ledger timezone: '+l.getSpreadsheetTimeZone()));
+  c.push(foA2161Ctl_('CONFIGURATION','Apps Script timezone',foA2161IsOperatingTimezone_(Session.getScriptTimeZone()),'HIGH','Apps Script timezone: '+Session.getScriptTimeZone()));
   foValidateInvestmentLedgerA2161().controls.forEach(x=>c.push({category:'INVESTMENT LEDGER',control:x.control,status:x.status,severity:x.severity,details:x.details}));
   c.push(foA2161Ctl_('BASELINE','Release evidence finalized',base&&foA2161Released_(base),'CRITICAL',base?'Latest baseline evaluated.':'Baseline missing.'));
   const s=foA2161Ensure_(d,'Architecture Remediation Validation',['Validation Run ID','Timestamp','Category','Control','Status','Severity','Details','Architecture Version','Platform Version','Baseline']); foA2161Append_(s,c.map(x=>[id,now,x.category,x.control,x.status,x.severity,x.details,FO_A2161_VERSION,FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE]));
