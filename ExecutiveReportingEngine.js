@@ -50,6 +50,11 @@ function foRunExecutiveReportEngine() {
       });
     }
 
+    const integrationA233 =
+      typeof foRunExecutiveDecisionIntegrationA233 === 'function'
+        ? foRunExecutiveDecisionIntegrationA233()
+        : null;
+
     const reportId = foNowId_('EXEC-RPT');
     const summary = foBuildExecutiveSummary_(decisions);
 
@@ -71,6 +76,12 @@ function foRunExecutiveReportEngine() {
     }
 
     const rows = [];
+
+    foAppendExecutiveDecisionStateRowsA233_(
+      rows,
+      integrationA233,
+      reportId
+    );
 
     rows.push([
       'Executive Summary',
@@ -111,12 +122,12 @@ function foRunExecutiveReportEngine() {
       new Date()
     ]);
 
-    foAppendDecisionSection_(rows, 'Deploy Capital', decisions, ['DEPLOY CAPITAL WITH LIMITS'], reportId);
-    foAppendDecisionSection_(rows, 'Buy / Add', decisions, ['BUY / ADD'], reportId);
-    foAppendDecisionSection_(rows, 'Accumulate', decisions, ['ACCUMULATE ON WEAKNESS'], reportId);
-    foAppendDecisionSection_(rows, 'Hold', decisions, ['HOLD'], reportId);
-    foAppendDecisionSection_(rows, 'Watch / Review', decisions, ['WATCH / REVIEW'], reportId);
-    foAppendDecisionSection_(rows, 'No Action', decisions, ['NO ACTION'], reportId);
+    foAppendDecisionSectionA233_(rows, 'Deploy Capital', decisions, ['DEPLOY CAPITAL WITH LIMITS'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Buy / Add', decisions, ['BUY / ADD'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Accumulate', decisions, ['ACCUMULATE ON WEAKNESS'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Hold', decisions, ['HOLD'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Watch / Review', decisions, ['WATCH / REVIEW'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'No Action', decisions, ['NO ACTION'], reportId, integrationA233);
 
     if (rows.length > 0) {
       output.getRange(2, 1, rows.length, 10).setValues(rows);
