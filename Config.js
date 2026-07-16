@@ -1,7 +1,7 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
   PLATFORM_VERSION: 'v1.2.1',
-  RELEASE_NAME = 'Executive Decision Integration'
+  RELEASE_NAME: 'Executive Decision Integration',
 
   BASELINE: 'CB-002',
   BUILD: '2026.07.16.001',
