@@ -10,6 +10,18 @@ const FO_A240_RETURN_COVERAGE_THRESHOLD = 0.80;
 const FO_A2401_ZERO_TOLERANCE = 0.0000001;
 
 function foRunWeeklyCioReportA240(options) {
+  return foWithRuntimeLock_(
+    'Run Weekly CIO Report A240 archive workflow',
+    function() {
+      return foRunWeeklyCioReportA240Protected_(options);
+    }
+  );
+}
+
+function foRunWeeklyCioReportA240Protected_(options) {
+  foAssertRuntimeLockHeld_(
+    'Run Weekly CIO Report A240 archive workflow'
+  );
   const settings = options || {};
   const dashboard = foDashboard_();
 

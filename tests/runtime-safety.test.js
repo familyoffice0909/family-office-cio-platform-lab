@@ -3,12 +3,30 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { execFileSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const DASHBOARD_ID = 'synthetic-dashboard-id-0001';
 const LEDGER_ID = 'synthetic-ledger-id-000002';
+
+function createSpreadsheet(id, environment, role, options = {}) {
+  const bindings = {
+    FO_RUNTIME_ENVIRONMENT: environment,
+    FO_RUNTIME_WORKBOOK_ROLE: role
+  };
+
+  return {
+    getId: jest.fn(() => id),
+    getRangeByName: jest.fn((name) => {
+      if (options.missingBindings) return null;
+      return {
+        getDisplayValue: jest.fn(() => bindings[name] || '')
+      };
+    })
+  };
+}
 
 function createRuntime(options = {}) {
   const values = {
@@ -24,6 +42,23 @@ function createRuntime(options = {}) {
     tryLock: jest.fn(() => true),
     releaseLock: jest.fn()
   };
+  const dashboard = options.dashboard || createSpreadsheet(
+    DASHBOARD_ID,
+    (options.dashboardBinding || {}).environment || values.FO_ENVIRONMENT,
+    (options.dashboardBinding || {}).role || 'DASHBOARD',
+    options.dashboardBinding
+  );
+  const ledger = options.ledger || createSpreadsheet(
+    LEDGER_ID,
+    (options.ledgerBinding || {}).environment || values.FO_ENVIRONMENT,
+    (options.ledgerBinding || {}).role || 'LEDGER',
+    options.ledgerBinding
+  );
+  const SpreadsheetApp = options.SpreadsheetApp || {
+    openById: jest.fn((id) => (
+      id === DASHBOARD_ID ? dashboard : ledger
+    ))
+  };
   const context = vm.createContext({
     PropertiesService: {
       getScriptProperties: jest.fn(() => scriptProperties)
@@ -31,21 +66,29 @@ function createRuntime(options = {}) {
     LockService: {
       getScriptLock: jest.fn(() => lock)
     },
-    SpreadsheetApp: options.SpreadsheetApp,
+    SpreadsheetApp,
     console
   });
 
   vm.runInContext(read('RuntimeSafety.js'), context);
+  vm.runInContext(read('SpreadsheetService.js'), context);
   vm.runInContext(read('RuntimeLockService.js'), context);
 
-  return { context, lock, scriptProperties };
+  return {
+    context,
+    dashboard,
+    ledger,
+    lock,
+    scriptProperties,
+    SpreadsheetApp
+  };
 }
 
-describe('Wave R1.3.0.2 runtime guard', () => {
+describe('Wave R1.3.0.3 runtime authorization and binding', () => {
   test('accepts a complete LAB configuration', () => {
     const { context } = createRuntime();
 
-    const configuration = context.foAssertRuntimeSafety_('Unit test');
+    const configuration = context.foAssertRuntimeReadSafety_('Unit test');
 
     expect(configuration.environment).toBe('LAB');
     expect(configuration.dashboardSpreadsheetId).toBe(DASHBOARD_ID);
@@ -64,11 +107,11 @@ describe('Wave R1.3.0.2 runtime guard', () => {
   ])('fails closed for %s', (_label, properties) => {
     const { context } = createRuntime({ properties });
 
-    expect(() => context.foAssertRuntimeSafety_('Unit test'))
+    expect(() => context.foAssertRuntimeReadSafety_('Unit test'))
       .toThrow('Runtime safety blocked operation');
   });
 
-  test('requires an explicit production write enable flag', () => {
+  test('allows Production reads while separately blocking writes', () => {
     const disabled = createRuntime({
       properties: { FO_ENVIRONMENT: 'PRODUCTION' }
     });
@@ -79,22 +122,56 @@ describe('Wave R1.3.0.2 runtime guard', () => {
       }
     });
 
-    expect(() => disabled.context.foAssertRuntimeSafety_('Production test'))
+    expect(disabled.context.foGetRuntimeEnvironment_()).toBe('PRODUCTION');
+    expect(disabled.context.foDashboardRead_()).toBe(disabled.dashboard);
+    expect(() => disabled.context.foDashboard_())
       .toThrow('production writes are disabled');
-    expect(enabled.context.foAssertRuntimeSafety_('Production test').environment)
+    expect(disabled.SpreadsheetApp.openById).toHaveBeenCalledTimes(1);
+    expect(() => disabled.context.foAssertRuntimeWriteSafety_('Write test'))
+      .toThrow('production writes are disabled');
+    expect(enabled.context.foAssertRuntimeWriteSafety_('Write test').environment)
       .toBe('PRODUCTION');
+  });
+
+  test('retains the legacy runtime assertion as a write assertion', () => {
+    const { context } = createRuntime({
+      properties: { FO_ENVIRONMENT: 'PRODUCTION' }
+    });
+
+    expect(() => context.foAssertRuntimeSafety_('Legacy write assertion'))
+      .toThrow('production writes are disabled');
   });
 
   test('SpreadsheetService validates the opened workbook identity', () => {
     const SpreadsheetApp = {
-      openById: jest.fn(() => ({ getId: () => LEDGER_ID }))
+      openById: jest.fn(() => createSpreadsheet(
+        LEDGER_ID,
+        'LAB',
+        'LEDGER'
+      ))
     };
     const { context } = createRuntime({ SpreadsheetApp });
-    vm.runInContext(read('SpreadsheetService.js'), context);
 
     expect(() => context.foDashboard_())
       .toThrow('opened workbook does not match the configured dashboard target');
     expect(SpreadsheetApp.openById).toHaveBeenCalledWith(DASHBOARD_ID);
+  });
+
+  test.each([
+    ['environment', { environment: 'PRODUCTION' },
+      'workbook environment binding does not match LAB'],
+    ['role', { role: 'LEDGER' },
+      'workbook role binding does not match DASHBOARD'],
+    ['named ranges', { missingBindings: true },
+      'workbook runtime binding named ranges are missing']
+  ])('fails closed for an invalid Dashboard %s binding', (
+    _label,
+    dashboardBinding,
+    expectedError
+  ) => {
+    const { context } = createRuntime({ dashboardBinding });
+
+    expect(() => context.foDashboard_()).toThrow(expectedError);
   });
 
   test('invalid configuration blocks access before SpreadsheetApp is called', () => {
@@ -103,7 +180,6 @@ describe('Wave R1.3.0.2 runtime guard', () => {
       properties: { FO_ENVIRONMENT: '' },
       SpreadsheetApp
     });
-    vm.runInContext(read('SpreadsheetService.js'), context);
 
     expect(() => context.foDashboard_())
       .toThrow('Runtime safety blocked operation');
@@ -111,22 +187,36 @@ describe('Wave R1.3.0.2 runtime guard', () => {
   });
 });
 
-describe('Wave R1.3.0.2 runtime locking', () => {
+describe('Wave R1.3.0.3 runtime locking', () => {
   test('blocks protected helpers when no runtime lock is held', () => {
     const { context } = createRuntime();
 
-    expect(() => context.foAssertRuntimeLockHeld_('Direct helper test'))
+    expect(() => context.foAssertRuntimeLockHeld_('Archive report'))
       .toThrow('Runtime safety blocked unlocked operation');
   });
 
-  test('serializes an operation and releases the lock', () => {
-    const { context, lock } = createRuntime();
+  test('serializes an operation, verifies both bindings, and releases the lock', () => {
+    const { context, lock, SpreadsheetApp } = createRuntime();
     const callback = jest.fn(() => 'complete');
 
-    expect(context.foWithRuntimeLock_('Locked test', callback))
+    expect(context.foWithRuntimeLock_('Archive report', callback))
       .toBe('complete');
     expect(lock.tryLock).toHaveBeenCalledWith(5000);
+    expect(SpreadsheetApp.openById).toHaveBeenCalledWith(DASHBOARD_ID);
+    expect(SpreadsheetApp.openById).toHaveBeenCalledWith(LEDGER_ID);
     expect(callback).toHaveBeenCalledTimes(1);
+    expect(lock.releaseLock).toHaveBeenCalledTimes(1);
+  });
+
+  test('blocks the write before its callback when either workbook binding is invalid', () => {
+    const { context, lock } = createRuntime({
+      ledgerBinding: { environment: 'PRODUCTION' }
+    });
+    const callback = jest.fn();
+
+    expect(() => context.foWithRuntimeLock_('Archive report', callback))
+      .toThrow('workbook environment binding does not match LAB');
+    expect(callback).not.toHaveBeenCalled();
     expect(lock.releaseLock).toHaveBeenCalledTimes(1);
   });
 
@@ -138,7 +228,7 @@ describe('Wave R1.3.0.2 runtime locking', () => {
     const { context } = createRuntime({ lock });
     const callback = jest.fn();
 
-    expect(() => context.foWithRuntimeLock_('Contended test', callback))
+    expect(() => context.foWithRuntimeLock_('Archive report', callback))
       .toThrow('Runtime safety blocked concurrent operation');
     expect(callback).not.toHaveBeenCalled();
     expect(lock.releaseLock).not.toHaveBeenCalled();
@@ -147,7 +237,7 @@ describe('Wave R1.3.0.2 runtime locking', () => {
   test('releases the lock when the protected operation throws', () => {
     const { context, lock } = createRuntime();
 
-    expect(() => context.foWithRuntimeLock_('Throwing test', () => {
+    expect(() => context.foWithRuntimeLock_('Archive report', () => {
       throw new Error('synthetic failure');
     })).toThrow('synthetic failure');
     expect(lock.releaseLock).toHaveBeenCalledTimes(1);
@@ -156,25 +246,94 @@ describe('Wave R1.3.0.2 runtime locking', () => {
   test('supports nested protected services without reacquiring the script lock', () => {
     const { context, lock } = createRuntime();
 
-    const result = context.foWithRuntimeLock_('Outer test', () => (
-      context.foWithRuntimeLock_('Inner test', () => 'nested complete')
-    ));
+    const result = context.foWithRuntimeLock_(
+      'Run Autonomous CIO Orchestrator',
+      () => context.foWithRuntimeLock_('Archive report', () => 'complete')
+    );
 
-    expect(result).toBe('nested complete');
+    expect(result).toBe('complete');
     expect(lock.tryLock).toHaveBeenCalledTimes(1);
     expect(lock.releaseLock).toHaveBeenCalledTimes(1);
   });
+
+  test('blocks lock use outside the explicit protected-operation inventory', () => {
+    const { context } = createRuntime();
+
+    expect(() => context.foWithRuntimeLock_('Unregistered operation', () => {}))
+      .toThrow('Runtime safety blocked unregistered protected operation');
+  });
 });
 
-describe('Wave R1.3.0.2 protected surface', () => {
+describe('Wave R1.3.0.3 authoritative protected surface', () => {
   test.each([
-    ['AutonomousCioOrchestrator.js', 'Run Autonomous CIO Orchestrator'],
-    ['ProductionCertificationEngine.js', 'Run Production Certification'],
-    ['ReportService.js', 'Archive report']
-  ])('%s uses the runtime lock guard', (file, operation) => {
-    const source = read(file);
-    expect(source).toContain('foWithRuntimeLock_(');
-    expect(source).toContain(operation);
+    [
+      'Wave311CertificationEngine.js',
+      'foRunProductionCertificationWave311',
+      'foRunProductionCertificationWave311Protected_',
+      'Run Production Certification Wave311',
+      [{ orchestratorRunId: 'synthetic-run' }]
+    ],
+    [
+      'ExecutiveReportingEngine.js',
+      'foRunExecutiveReportEngine',
+      'foRunExecutiveReportEngineProtected_',
+      'Run Executive Report archive workflow',
+      []
+    ],
+    [
+      'WeeklyCioReportA240.js',
+      'foRunWeeklyCioReportA240',
+      'foRunWeeklyCioReportA240Protected_',
+      'Run Weekly CIO Report A240 archive workflow',
+      [{ refreshDecisionState: false }]
+    ]
+  ])('%s public entry executes through the runtime lock', (
+    file,
+    publicName,
+    protectedName,
+    operation,
+    args
+  ) => {
+    const { context, lock } = createRuntime();
+    vm.runInContext(read(file), context);
+    context[protectedName] = jest.fn(() => 'protected result');
+
+    expect(context[publicName](...args)).toBe('protected result');
+    expect(context[protectedName]).toHaveBeenCalledTimes(1);
+    expect(lock.tryLock).toHaveBeenCalledTimes(1);
+    expect(read(file)).toContain(operation);
+  });
+
+  test.each([
+    ['Wave311CertificationEngine.js',
+      'foRunProductionCertificationWave311Protected_', [{}]],
+    ['ExecutiveReportingEngine.js',
+      'foRunExecutiveReportEngineProtected_', []],
+    ['WeeklyCioReportA240.js',
+      'foRunWeeklyCioReportA240Protected_', [{}]]
+  ])('%s protected helper rejects a direct unlocked call', (
+    file,
+    protectedName,
+    args
+  ) => {
+    const { context } = createRuntime();
+    vm.runInContext(read(file), context);
+
+    expect(() => context[protectedName](...args))
+      .toThrow('Runtime safety blocked unlocked operation');
+  });
+
+  test('the protected-operation inventory names every current surface', () => {
+    const source = read('RuntimeLockService.js');
+
+    [
+      'Run Autonomous CIO Orchestrator',
+      'Run Production Certification',
+      'Archive report',
+      'Run Production Certification Wave311',
+      'Run Executive Report archive workflow',
+      'Run Weekly CIO Report A240 archive workflow'
+    ].forEach((operation) => expect(source).toContain(operation));
   });
 
   test('Apps Script OAuth scopes are explicit', () => {
@@ -197,12 +356,30 @@ describe('Wave R1.3.0.2 protected surface', () => {
       (read(file).match(directOpenPattern) || []).map(() => file)
     ));
 
-    expect(directOpens).toEqual([
-      'SpreadsheetService.js',
-      'SpreadsheetService.js'
-    ]);
+    expect(directOpens).toEqual(['SpreadsheetService.js']);
     expect(read('SpreadsheetService.js')).not.toMatch(
       /SpreadsheetApp\s*\.\s*openByUrl\s*\(/
     );
+  });
+
+  test('root Production sources receive meaningful ESLint rules', () => {
+    const configuration = JSON.parse(execFileSync(
+      process.execPath,
+      [
+        path.join(root, 'node_modules/eslint/bin/eslint.js'),
+        '--print-config',
+        path.join(root, 'RuntimeSafety.js')
+      ],
+      { cwd: root, encoding: 'utf8' }
+    ));
+
+    expect(configuration.rules['no-undef'][0]).toBe(2);
+    expect(configuration.rules['no-unused-vars'][0]).toBe(2);
+    expect(configuration.rules['no-unreachable'][0]).toBe(2);
+  });
+
+  test('provides a read-only Apps Script runtime smoke entry point', () => {
+    expect(read('SpreadsheetService.js'))
+      .toContain('function foRunRuntimeSafetySmokeTest()');
   });
 });
