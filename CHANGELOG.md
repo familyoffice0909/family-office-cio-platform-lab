@@ -11,6 +11,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - Enterprise engineering documentation
+- Institutional engineering governance for the SDLC, readiness and completion gates, release governance, repository quality, ownership, ADRs, and the five-epic roadmap in wave R1.3.0.4
 - Repository governance and release checklist
 - Automated module, menu, orchestrator, version, manifest, duplicate-function, and secret validation
 - CI-generated smoke-test inventory artifact

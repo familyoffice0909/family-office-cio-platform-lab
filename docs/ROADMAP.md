@@ -1,4 +1,6 @@
-# Development Roadmap
+# Development Roadmap (Legacy View)
+
+> The canonical portfolio roadmap is now [Engineering Roadmap](engineering/ROADMAP.md). This historical phase-oriented view is retained for traceability and must not be used to mark a wave complete independently of the canonical roadmap and release evidence.
 
 ## Completed
 

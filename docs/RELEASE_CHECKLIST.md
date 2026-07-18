@@ -1,6 +1,6 @@
 # Release Checklist
 
-This is the canonical operational checklist for the release lifecycle defined by the [Release Policy](engineering/RELEASE_POLICY.md). Copy it into the release issue or evidence record, identify the operator and approvers, and mark non-applicable controls with a reason. Do not edit a completed historical checklist to represent a later release.
+This is the canonical operational checklist for the release lifecycle defined by [Release Governance](engineering/RELEASE_GOVERNANCE.md) and the [Release Policy](engineering/RELEASE_POLICY.md). Copy it into the release issue or evidence record, identify the operator and approvers, and mark non-applicable controls with a reason. Do not edit a completed historical checklist to represent a later release.
 
 ## Release identity
 
@@ -13,7 +13,7 @@ This is the canonical operational checklist for the release lifecycle defined by
 ## Before pull request approval
 
 - [ ] Scope matches the engineering wave
-- [ ] Definition of Done and Pull Request checklist are complete
+- [ ] [Definition of Done](engineering/DEFINITION_OF_DONE.md) and Pull Request checklist are complete
 - [ ] Required ADR and Architecture Review checklist are approved
 - [ ] `npm ci` succeeds
 - [ ] `npm run validate` passes
