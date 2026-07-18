@@ -34,14 +34,35 @@ This roadmap organizes platform delivery into five institutional epics. Status i
 
 - A2.3.0 — Architecture Foundation
 - R1.3.0.1 — Repository Integrity
+- R1.3.0.2 — Runtime Safety
 
 **In progress:**
 
-- R1.3.0.4 — Engineering Governance; documentation framework drafted, pending review, merge, release validation, roadmap reconciliation, and authorized tag
+- R1.3.0.3 — Runtime Completion
+  - Implementation complete
+  - Architecture Review complete
+  - Static validation complete
+  - CI complete
+  - Apps Script Lab validation pending
+  - Merge pending
+- R1.3.0.4 — Engineering Governance
+  - Draft PR
+  - Architecture Review
+  - Release Validation
+  - Merge
+  - Tagging
 
 **Future:**
 
-- Architecture enforcement and governance automation in separately approved waves
+- R1.3.1 — Architecture Enforcement
+  - Registry Authority
+  - Writer Authority
+  - Reporting Authority
+  - Failure Authority
+  - Certification Authority
+  - RunContext
+  - Run Identity
+  - Dependency Enforcement
 - Dependency, schema, documentation-link, and policy-conformance controls
 - Periodic governance review and technical-debt portfolio reporting
 
