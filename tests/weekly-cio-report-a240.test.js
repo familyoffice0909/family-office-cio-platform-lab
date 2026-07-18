@@ -37,8 +37,22 @@ describe('Wave A2.4.0 static integration', () => {
     expect(read('Menu.js')).toContain('foRunWeeklyCioReportSmokeTestA240');
   });
 
-  test('feature does not change platform version metadata', () => {
+  test('released platform metadata is reconciled to v1.3.0 and CB-002', () => {
     const config = read('Config.js');
-    expect(config).toContain("PLATFORM_VERSION: 'v1.2.1'");
+    const packageJson = JSON.parse(read('package.json'));
+    expect(config).toContain("PLATFORM_VERSION: 'v1.3.0'");
+    expect(config).toContain("BASELINE: 'CB-002'");
+    expect(packageJson.version).toBe('1.3.0');
+  });
+
+  test('A2.4.0.2 percentage and executive-rounding controls remain present', () => {
+    const source = read('WeeklyCioReportA240.js');
+    expect(source).toContain('A2.4.0.2 Percentage Unit Normalization');
+    expect(source).toContain('Portfolio weights total approximately 100 percent');
+    expect(source).toContain('Report contains no implausible portfolio percentages');
+    expect(source).toContain('function foA240RatioPercentText_(');
+    expect(source).toContain('function foA240PercentPointsText_(');
+    expect(source).toContain('function foA240CleanNumericText_(');
+    expect(source).toContain('return Number(value).toFixed(2);');
   });
 });

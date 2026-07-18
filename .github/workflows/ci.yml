@@ -3,10 +3,14 @@ name: CIO Platform CI
 on:
   pull_request:
     branches:
+      - develop
       - main
   push:
     branches:
+      - develop
+      - main
       - "feature/**"
+      - "codex/**"
   workflow_dispatch:
 
 permissions:
@@ -41,6 +45,9 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Run Jest tests
+        run: npm test
+
       - name: Generate smoke-test inventory
         run: npm run smoke:inventory
 
@@ -61,4 +68,5 @@ jobs:
           echo "- Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Architectural validation: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- ESLint: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Jest tests: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Smoke-test inventory: generated" >> "$GITHUB_STEP_SUMMARY"

@@ -6,6 +6,9 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Reconciled repository metadata, static tests, validation, and CI with the released `v1.3.0` / `CB-002` baseline in wave R1.3.0.1
+
 ### Added
 - Enterprise engineering documentation
 - Repository governance and release checklist
@@ -16,6 +19,11 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Buy Zone Intelligence hardening
 - Decision explainability
 - Recommendation change detection
+
+## [1.3.0] - 2026-07-16
+
+### Added
+- Unified Weekly CIO Reporting with A2.4.0.2 percentage normalization and executive-output rounding controls
 
 ## [1.0.0] - 2026-07-10
 
