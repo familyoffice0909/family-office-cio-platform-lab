@@ -96,7 +96,7 @@ This roadmap organizes platform delivery into five institutional epics. Status i
 **In progress:**
 
 - Release 2.1.0 — Multi-Account Portfolio Intelligence Core
-  - Domain model, account registry, unified allocation, duplicate exposure, compatibility migration, and automated tests implemented
+  - RC2 architecture remediation implemented: canonical aggregation, base-currency contract, account/security normalization, explicit duplicate rules, release lineage, compatibility migration, and automated regressions
   - Feature review, Apps Script Lab validation, workbook validation, merge, certification, and release closure pending
 
 **Future:**

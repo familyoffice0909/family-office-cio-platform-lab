@@ -24,23 +24,27 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Decision explainability
 - Recommendation change detection
 
-## [2.1.0] - Unreleased
+## [2.1.0-rc.2] - Unreleased (Draft PR #8)
 
 ### Added
 
 - Multi-account portfolio domain model covering `InvestmentAccount`, `AccountType`, `Holdings`, and `HouseholdPortfolio`
 - In-memory account registry operations for account lifecycle, holdings replacement, supplied-price market-value refresh, and defensive account discovery
-- Unified household aggregation for sector, country, currency, asset-class, and largest-security exposure
-- Duplicate-holding and descriptive sector, currency, and security concentration analysis
+- One canonical household aggregation result for total value, normalized positions, account/sector/country/currency/asset-class allocation, security exposure, concentration, and duplicate classification
+- Explicit cross-account, same-account, and all-duplicate views using canonical security identity with ticker fallback
 - Automatic compatibility migration of legacy single-account holdings to `Default Account`
 
 ### Changed
 
-- Portfolio snapshots now interpret a missing legacy account as `Default Account` and return additive household intelligence without changing the existing snapshot worksheet schema
+- Portfolio snapshot/summary, performance, valuation, state, and exposure-attribution calculations now consume the canonical aggregation output without changing existing worksheet schemas
+- Accounts are normalized once at ingestion; blank, case, and whitespace variants resolve consistently
+- Market value is explicitly governed as household-base-currency value and inconsistent explicit currency inputs fail closed
+- Direct `InvestmentAccount` construction now requires ID, name, type, currency, and holdings; compatibility defaults remain isolated in the legacy adapter
+- Release metadata now identifies `v2.1.0-rc.2`; actual ancestry is `v1.3.0` → `r1.3.1.1` → this draft candidate because no Release 2.0 tag/baseline exists in the repository
 
 ### Validation
 
-- Added deterministic Jest coverage and an Apps Script smoke-test entry point; Lab Apps Script and workbook validation remain release gates after review and integration
+- Added regression coverage for empty/large households, currency enforcement, account normalization, duplicate semantics, identity precedence, exposure reconciliation, consumer integration, and worksheet compatibility; live Lab Apps Script/workbook validation remains a release gate
 
 ## [1.3.0] - 2026-07-16
 

@@ -37,12 +37,16 @@ describe('Wave A2.4.0 static integration', () => {
     expect(read('Menu.js')).toContain('foRunWeeklyCioReportSmokeTestA240');
   });
 
-  test('platform metadata is reconciled to v2.1.0 and CB-002', () => {
+  test('platform metadata is reconciled to v2.1.0-rc.2 and CB-002', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
-    expect(config).toContain("PLATFORM_VERSION: 'v2.1.0'");
+    expect(config).toContain("PLATFORM_VERSION: 'v2.1.0-rc.2'");
     expect(config).toContain("BASELINE: 'CB-002'");
-    expect(packageJson.version).toBe('2.1.0');
+    expect(config).toContain("RELEASE_STATUS: 'RELEASE_CANDIDATE'");
+    expect(config).toContain(
+      "RELEASE_LINEAGE: 'v1.3.0 -> r1.3.1.1 -> v2.1.0-rc.2'"
+    );
+    expect(packageJson.version).toBe('2.1.0-rc.2');
   });
 
   test('A2.4.0.2 percentage and executive-rounding controls remain present', () => {

@@ -154,15 +154,29 @@ function foRebuildPortfolioStateFromSourceSheets() {
       }
     });
 
-    const totalMarketValue = rows.reduce(function (sum, row) {
-      return sum + (Number(row[10]) || 0);
-    }, 0);
+    const aggregation = foAggregateHouseholdPortfolio(
+      foCreateHouseholdPortfolioFromPositions(rows.map(function(row) {
+        return {
+          account: row[1],
+          ticker: row[2],
+          company: row[3],
+          quantity: row[6],
+          currency: row[7],
+          marketValue: row[10],
+          marketValueCurrency: 'CAD',
+          costBasis: row[11],
+          assetClass: row[14],
+          sector: row[16],
+          targetWeight: row[17]
+        };
+      }), 'CAD')
+    );
+    const totalMarketValue = aggregation.totalMarketValue;
 
-    rows.forEach(function (row) {
-      const marketValueCAD = Number(row[10]) || 0;
+    rows.forEach(function (row, index) {
       const targetWeight = row[17] === '' ? '' : Number(row[17]);
       const currentWeight =
-        totalMarketValue > 0 ? marketValueCAD / totalMarketValue : '';
+        totalMarketValue > 0 ? aggregation.positions[index].weight : '';
       const drift =
         currentWeight !== '' && targetWeight !== ''
           ? currentWeight - targetWeight

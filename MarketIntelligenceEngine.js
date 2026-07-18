@@ -36,7 +36,9 @@ function foRunMarketIntelligence() {
       const holding = {
         ticker: ticker,
         company: foGetVal_(row, headers, 'Company'),
-        account: foGetVal_(row, headers, 'Account'),
+        account: foNormalizeAccountIdentity_(
+          foGetVal_(row, headers, 'Account')
+        ).name,
         assetClass: foGetVal_(row, headers, 'Asset Class'),
         sector: foGetVal_(row, headers, 'Sector'),
         theme: foGetVal_(row, headers, 'Theme'),

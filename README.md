@@ -8,7 +8,7 @@ Institutional-grade Family Office CIO Platform built on Google Sheets and Google
 
 ## Current repository baseline
 
-- Platform version: `v2.1.0`
+- Platform version: `v2.1.0-rc.2` (draft Release 2.1.0 RC2)
 - Configuration baseline: `CB-002`
 - Release: Multi-Account Portfolio Intelligence Core
 - Lab repository: `family-office-cio-platform-lab` (`origin`)
@@ -85,6 +85,8 @@ Never commit `.clasprc.json`, OAuth tokens, service-account keys, broker credent
 - [AI Collaboration Model](docs/engineering/AI_COLLABORATION_MODEL.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Release 2.1.0 — Multi-Account Portfolio Intelligence Core](docs/portfolio-intelligence/RELEASE-2.1.0-MULTI-ACCOUNT-CORE.md)
+- [Household Portfolio Aggregation API Contract](docs/portfolio-intelligence/PORTFOLIO-AGGREGATION-API.md)
+- [Release 2.1.0 RC2 Migration Guide](docs/portfolio-intelligence/MIGRATION-2.1.0-RC2.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
 - [Smoke-test reporting](docs/SMOKE_TEST.md)

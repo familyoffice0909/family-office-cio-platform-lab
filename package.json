@@ -1,6 +1,6 @@
 {
   "name": "family-office-cio-platform",
-  "version": "2.1.0",
+  "version": "2.1.0-rc.2",
   "private": true,
   "description": "Institutional-grade Family Office CIO Platform for Google Apps Script and Google Sheets",
   "scripts": {

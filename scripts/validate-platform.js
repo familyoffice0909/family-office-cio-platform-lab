@@ -175,7 +175,9 @@ if (
       packageLock.packages[''] &&
       packageLock.packages[''].version;
     const config = read('Config.js');
-    const versionMatch = config.match(/PLATFORM_VERSION\s*:\s*['"]v?(\d+\.\d+\.\d+)['"]/);
+    const versionMatch = config.match(
+      /PLATFORM_VERSION\s*:\s*['"]v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)['"]/
+    );
     if (!versionMatch) {
       fail('Could not find PLATFORM_VERSION in Config.js');
     }

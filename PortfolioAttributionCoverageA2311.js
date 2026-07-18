@@ -25,10 +25,21 @@ function foRunPortfolioAttributionCoverageA2311() {
     throw new Error('A2.3.1.1 found no eligible portfolio rows.');
   }
 
-  const coverage = foA2311Coverage_(positions);
+  const aggregation = foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(positions.map(function(position) {
+      return Object.assign({}, position, {
+        marketValueCurrency: FO_CONFIG.BASE_CURRENCY
+      });
+    }), FO_CONFIG.BASE_CURRENCY)
+  );
+  const coverage = foA2311Coverage_(positions, aggregation);
   const positionRows = foA2311PositionRows_(positions, coverage, run);
-  const accountRows = foA2311GroupRows_(positions, 'account', coverage, run);
-  const sectorRows = foA2311GroupRows_(positions, 'sector', coverage, run);
+  const accountRows = foA2311GroupRows_(
+    positions, 'account', coverage, run, aggregation
+  );
+  const sectorRows = foA2311GroupRows_(
+    positions, 'sector', coverage, run, aggregation
+  );
   const executiveRows = foA2311ExecutiveRows_(
     positions,
     coverage,
@@ -103,8 +114,9 @@ function foA2311ReadPositions_(values, headers) {
     positions.push({
       ticker: ticker,
       company: foA2311Text_(foGetVal_(row, headers, 'Company')),
-      account:
-        foA2311Text_(foGetVal_(row, headers, 'Account')) || 'Unknown',
+      account: foNormalizeAccountIdentity_(
+        foGetVal_(row, headers, 'Account')
+      ).name,
       sector:
         foA2311Text_(foGetVal_(row, headers, 'Sector')) || 'Unknown',
       assetClass:
@@ -123,10 +135,8 @@ function foA2311ReadPositions_(values, headers) {
   return positions;
 }
 
-function foA2311Coverage_(positions) {
+function foA2311Coverage_(positions, aggregation) {
   const result = positions.reduce(function(summary, position) {
-    summary.totalMarketValue += position.marketValue;
-
     if (position.eligible) {
       summary.eligiblePositions++;
       summary.attributedMarketValue += position.marketValue;
@@ -139,7 +149,7 @@ function foA2311Coverage_(positions) {
 
     return summary;
   }, {
-    totalMarketValue: 0,
+    totalMarketValue: aggregation.totalMarketValue,
     attributedMarketValue: 0,
     unattributedMarketValue: 0,
     attributedCostBasis: 0,
@@ -194,28 +204,30 @@ function foA2311PositionRows_(positions, coverage, run) {
   });
 }
 
-function foA2311GroupRows_(positions, field, coverage, run) {
+function foA2311GroupRows_(positions, field, coverage, run, aggregation) {
   const groups = {};
+  const allocation = field === 'account'
+    ? aggregation.allocations.account
+    : aggregation.allocations.sector;
+
+  allocation.forEach(function(exposure) {
+    groups[exposure.name] = {
+      name: exposure.name,
+      totalMarketValue: exposure.marketValue,
+      attributedMarketValue: 0,
+      unattributedMarketValue: 0,
+      attributedCostBasis: 0,
+      attributedGainLoss: 0,
+      eligiblePositions: 0,
+      ineligiblePositions: 0,
+      tickers: []
+    };
+  });
 
   positions.forEach(function(position) {
     const key = position[field] || 'Unknown';
 
-    if (!groups[key]) {
-      groups[key] = {
-        name: key,
-        totalMarketValue: 0,
-        attributedMarketValue: 0,
-        unattributedMarketValue: 0,
-        attributedCostBasis: 0,
-        attributedGainLoss: 0,
-        eligiblePositions: 0,
-        ineligiblePositions: 0,
-        tickers: []
-      };
-    }
-
     const group = groups[key];
-    group.totalMarketValue += position.marketValue;
     group.tickers.push(position.ticker);
 
     if (position.eligible) {

@@ -30,7 +30,7 @@ function foRunPortfolioDataIntegrity() {
       const row = values[r];
 
       const ticker = String(foGetVal_(row, headers, 'Ticker') || '').trim().toUpperCase();
-      const account = String(foGetVal_(row, headers, 'Account') || '').trim();
+      const rawAccount = String(foGetVal_(row, headers, 'Account') || '').trim();
       const quantity = foIntegrityNumber_(foGetVal_(row, headers, 'Quantity'));
       const price = foIntegrityNumber_(foGetVal_(row, headers, 'Current Price'));
       const marketValue = foIntegrityNumber_(foGetVal_(row, headers, 'Market Value'));
@@ -40,9 +40,11 @@ function foRunPortfolioDataIntegrity() {
 
       if (!ticker) continue;
 
-      if (foIsReferencePortfolioRow_(account, quantity, marketValue, price)) {
+      if (foIsReferencePortfolioRow_(rawAccount, quantity, marketValue, price)) {
         continue;
       }
+
+      const account = foNormalizeAccountIdentity_(rawAccount).name;
 
       const rowNumber = r + 1;
       const duplicateKey = ticker + '|' + account;
@@ -53,12 +55,6 @@ function foRunPortfolioDataIntegrity() {
           'Consolidate duplicate rows or confirm they represent separate lots.');
       } else {
         seen[duplicateKey] = true;
-      }
-
-      if (!account) {
-        foAddPortfolioIntegrityIssue_(issues, rowNumber, ticker, account, 'Missing Account', 'HIGH',
-          'Account is blank for an active holding.',
-          'Enter account such as TFSA, LIRA, RRSP, Cash, or Interactive Brokers.');
       }
 
       if (quantity <= 0) {

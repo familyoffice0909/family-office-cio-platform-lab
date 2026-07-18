@@ -29,7 +29,7 @@ function foBuildPortfolioSnapshot() {
     }
 
     const headers = values[0].map(String);
-    const positions = [];
+    const rawPositions = [];
 
     for (let r = 1; r < values.length; r++) {
       const row = values[r];
@@ -50,9 +50,15 @@ function foBuildPortfolioSnapshot() {
             ? quantity * currentPrice
             : '';
 
-      positions.push({
+      rawPositions.push({
         rowNumber: r + 1,
         ticker: ticker,
+        canonicalSecurityId:
+          foGetVal_(row, headers, 'Canonical Security ID') || '',
+        securityId: foGetVal_(row, headers, 'Security ID') || '',
+        isin: foGetVal_(row, headers, 'ISIN') || '',
+        cusip: foGetVal_(row, headers, 'CUSIP') || '',
+        sedol: foGetVal_(row, headers, 'SEDOL') || '',
         company:
           foGetVal_(row, headers, 'Company') ||
           foGetVal_(row, headers, 'Company / Fund') ||
@@ -69,24 +75,33 @@ function foBuildPortfolioSnapshot() {
         theme: foGetVal_(row, headers, 'Theme') || '',
         quantity: quantity,
         currentPrice: currentPrice,
+        currentPriceCurrency: FO_CONFIG.BASE_CURRENCY,
         marketValue: marketValue,
+        marketValueCurrency: FO_CONFIG.BASE_CURRENCY,
         costBasis: costBasis,
         targetWeight: targetWeight
       });
     }
 
-    const totalMarketValue = positions.reduce(function(sum, p) {
-      return sum + (Number(p.marketValue) || 0);
-    }, 0);
     const householdPortfolio = foCreateHouseholdPortfolioFromPositions(
-      positions,
+      rawPositions,
       FO_CONFIG.BASE_CURRENCY
     );
+    const aggregation = foAggregateHouseholdPortfolio(householdPortfolio);
+    const positions = aggregation.positions.map(function(position) {
+      return Object.assign({}, position, {
+        quantity: position.quantity === null ? '' : position.quantity,
+        currentPrice: position.currentPrice === null ? '' : position.currentPrice,
+        costBasis: position.costBasis === null ? '' : position.costBasis,
+        targetWeight: position.targetWeight === null ? '' : position.targetWeight
+      });
+    });
+    const totalMarketValue = aggregation.totalMarketValue;
     const intelligence = foBuildUnifiedPortfolioIntelligence(
-      householdPortfolio
+      aggregation
     );
     const duplicateExposure = foAnalyzeDuplicateExposure(
-      householdPortfolio
+      aggregation
     );
 
     const snapshotSheet = foEnsureSheet_(dashboard, 'Portfolio Snapshot', [
@@ -132,8 +147,8 @@ function foBuildPortfolioSnapshot() {
           : '';
 
       const currentWeight =
-        totalMarketValue > 0 && p.marketValue !== ''
-          ? Number(p.marketValue) / totalMarketValue
+        totalMarketValue > 0
+          ? p.weight
           : '';
 
       const drift =
@@ -169,7 +184,7 @@ function foBuildPortfolioSnapshot() {
       snapshotSheet.getRange(2, 1, rows.length, 20).setValues(rows);
     }
 
-    foWritePortfolioSummary_(dashboard, snapshotId, positions, totalMarketValue);
+    foWritePortfolioSummary_(dashboard, snapshotId, aggregation);
 
     foInfo_(
       module,
@@ -196,7 +211,7 @@ function foBuildPortfolioSnapshot() {
   }
 }
 
-function foWritePortfolioSummary_(dashboard, snapshotId, positions, totalMarketValue) {
+function foWritePortfolioSummary_(dashboard, snapshotId, aggregation) {
   const summarySheet = foEnsureSheet_(dashboard, 'Portfolio Engine Summary', [
     'Timestamp',
     'Snapshot ID',
@@ -212,22 +227,19 @@ function foWritePortfolioSummary_(dashboard, snapshotId, positions, totalMarketV
       .clearContent();
   }
 
-  const uniqueAccounts = {};
-  const uniqueAssetClasses = {};
-  const uniqueSectors = {};
-
-  positions.forEach(function(p) {
-    if (p.account) uniqueAccounts[p.account] = true;
-    if (p.assetClass) uniqueAssetClasses[p.assetClass] = true;
-    if (p.sector) uniqueSectors[p.sector] = true;
-  });
+  const assetClassCount = aggregation.allocations.assetClass.filter(function(group) {
+    return group.name !== FO_UNKNOWN_PORTFOLIO_DIMENSION;
+  }).length;
+  const sectorCount = aggregation.allocations.sector.filter(function(group) {
+    return group.name !== FO_UNKNOWN_PORTFOLIO_DIMENSION;
+  }).length;
 
   const rows = [
-    [new Date(), snapshotId, 'Total Positions', positions.length, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), snapshotId, 'Total Market Value', totalMarketValue, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), snapshotId, 'Accounts Count', Object.keys(uniqueAccounts).length, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), snapshotId, 'Asset Classes Count', Object.keys(uniqueAssetClasses).length, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
-    [new Date(), snapshotId, 'Sectors Count', Object.keys(uniqueSectors).length, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE]
+    [new Date(), snapshotId, 'Total Positions', aggregation.holdingCount, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), snapshotId, 'Total Market Value', aggregation.totalMarketValue, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), snapshotId, 'Accounts Count', aggregation.accountCount, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), snapshotId, 'Asset Classes Count', assetClassCount, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE],
+    [new Date(), snapshotId, 'Sectors Count', sectorCount, FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE]
   ];
 
   summarySheet.getRange(2, 1, rows.length, 6).setValues(rows);

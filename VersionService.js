@@ -3,6 +3,8 @@ function foGetVersion() {
     platformName: FO_CONFIG.PLATFORM_NAME,
     platformVersion: FO_CONFIG.PLATFORM_VERSION,
     releaseName: FO_CONFIG.RELEASE_NAME,
+    releaseStatus: FO_CONFIG.RELEASE_STATUS,
+    releaseLineage: FO_CONFIG.RELEASE_LINEAGE,
     baseline: FO_CONFIG.BASELINE,
     build: FO_CONFIG.BUILD,
     environment: FO_CONFIG.ENVIRONMENT,
@@ -19,6 +21,8 @@ function foShowVersion() {
     v.platformName +
     '\nPlatform Version: ' + v.platformVersion +
     '\nRelease: ' + v.releaseName +
+    '\nRelease Status: ' + v.releaseStatus +
+    '\nRelease Lineage: ' + v.releaseLineage +
     '\nBaseline: ' + v.baseline +
     '\nBuild: ' + v.build +
     '\nEnvironment: ' + v.environment +

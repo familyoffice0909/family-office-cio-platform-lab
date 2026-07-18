@@ -91,7 +91,9 @@ function foA232ReadCurrent_(values, headers) {
   const rows = [];
   values.slice(1).forEach(function(row) {
     const ticker = foA232Text_(foGetVal_(row, headers, 'Ticker')).toUpperCase();
-    const account = foA232Text_(foGetVal_(row, headers, 'Account')) || 'Unknown';
+    const account = foNormalizeAccountIdentity_(
+      foGetVal_(row, headers, 'Account')
+    ).name;
     if (!ticker) return;
     const quantity = foA232Number_(foGetVal_(row, headers, 'Quantity'));
     const marketValue = foA232Number_(foGetVal_(row, headers, 'Market Value'));
@@ -123,7 +125,9 @@ function foA232LatestSnapshot_(sheet) {
   const rows = data.filter(function(row) {
     return String(row[runIndex] || '') === latestRunId;
   }).map(function(row) {
-    const account = foA232Text_(row[headers.indexOf('Account')]) || 'Unknown';
+    const account = foNormalizeAccountIdentity_(
+      row[headers.indexOf('Account')]
+    ).name;
     const ticker = foA232Text_(row[headers.indexOf('Ticker')]).toUpperCase();
     return {
       key: account.toUpperCase() + '|' + ticker,

@@ -62,11 +62,19 @@ function foCalculatePositionRiskA22(runId) {
   const positions = values.slice(1).map(r => foA22ReadPosition_(r, h)).filter(Boolean);
   if (!positions.length) throw new Error('No operational positions found in Portfolio Master.');
 
-  const total = positions.reduce((s,p)=>s+p.marketValue,0);
+  const aggregation = foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(positions.map(function(position) {
+      return Object.assign({}, position, {
+        marketValueCurrency: FO_CONFIG.BASE_CURRENCY
+      });
+    }), FO_CONFIG.BASE_CURRENCY)
+  );
+  const total = aggregation.totalMarketValue;
   if (!(total > 0)) throw new Error('Portfolio market value must be positive.');
 
-  positions.forEach(p => {
-    p.weight = foA22Round_(p.marketValue / total * 100, 4);
+  positions.forEach((p,index) => {
+    p.account = aggregation.positions[index].accountName;
+    p.weight = foA22Round_(aggregation.positions[index].weight * 100, 4);
     p.dataQuality = foA22DataQuality_(p);
     p.concentration = foA22Concentration_(p.weight);
     const risk = foA22PositionScore_(p);
@@ -95,7 +103,7 @@ function foCalculatePortfolioRiskA22(runId, positions) {
   if (!positions || !positions.length) positions = foA22ReadLatestPositionRisk_(dashboard);
   if (!positions || !positions.length) throw new Error('A2.2.1: no position-risk records.');
   const normalized=positions.map(function(p){ return {
-    runId:foA22Text_(p.runId), ticker:foA22Text_(p.ticker)||'UNKNOWN', account:foA22Text_(p.account)||'Unknown',
+    runId:foA22Text_(p.runId), ticker:foA22Text_(p.ticker)||'UNKNOWN', account:foNormalizeAccountIdentity_(p.account).name,
     marketValue:foA22FiniteNumber_(p.marketValue,0,'marketValue '+p.ticker),
     portfolioWeightPct:foA22FiniteNumber_(p.portfolioWeightPct,0,'weight '+p.ticker),
     riskScore:foA22FiniteNumber_(p.riskScore,0,'riskScore '+p.ticker),
@@ -103,14 +111,18 @@ function foCalculatePortfolioRiskA22(runId, positions) {
     sector:foA22Text_(p.sector)||'Unknown', currency:foA22Text_(p.currency)||'Unknown',
     riskRating:foA22Text_(p.riskRating), notes:foA22Text_(p.notes)
   };});
-  const totalValue=normalized.reduce(function(s,p){return s+p.marketValue;},0);
+  const aggregation=foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(normalized.map(function(position){
+      return Object.assign({},position,{marketValueCurrency:FO_CONFIG.BASE_CURRENCY});
+    }),FO_CONFIG.BASE_CURRENCY)
+  );
+  const totalValue=aggregation.totalMarketValue;
   if (!Number.isFinite(totalValue)||totalValue<=0) throw new Error('A2.2.1 invalid portfolio value: '+totalValue);
-  normalized.forEach(function(p){p.portfolioWeightPct=foA22Round_(p.marketValue/totalValue*100,4);});
-  const sorted=normalized.slice().sort(function(a,b){return b.portfolioWeightPct-a.portfolioWeightPct;});
-  const largest=foA22FiniteNumber_(sorted[0].portfolioWeightPct,0,'largest');
-  const top5=sorted.slice(0,5).reduce(function(s,p){return s+p.portfolioWeightPct;},0);
-  const sector=foA22SafeMaxGroupWeight_(normalized,'sector');
-  const currency=foA22SafeMaxGroupWeight_(normalized,'currency');
+  normalized.forEach(function(p,index){p.portfolioWeightPct=foA22Round_(aggregation.positions[index].weight*100,4);});
+  const largest=foA22FiniteNumber_(aggregation.securityExposure[0].weight*100,0,'largest');
+  const top5=aggregation.concentration.top5Weight*100;
+  const sector=aggregation.allocations.sector[0].weight*100;
+  const currency=aggregation.allocations.currency[0].weight*100;
   const weightedRisk=normalized.reduce(function(s,p){return s+p.riskScore*(p.portfolioWeightPct/100);},0);
   const avgDQ=normalized.reduce(function(s,p){return s+p.dataQualityScore*(p.portfolioWeightPct/100);},0);
   const diversification=foA22DiversificationScore_(normalized.length,largest,top5,sector,currency);
@@ -201,10 +213,10 @@ function foRunPositionRiskSmokeTestA22() {
 function foA22ReadPosition_(r,h){
   const id=foA22Text_(foA22Cell_(r,h,'Position ID'));
   const ticker=foA22Text_(foA22Cell_(r,h,'Ticker'));
-  const account=foA22Text_(foA22Cell_(r,h,'Account'));
+  const account=foNormalizeAccountIdentity_(foA22Cell_(r,h,'Account')).name;
   const mv=foA22Num_(foA22Cell_(r,h,'Market Value'));
   if(!ticker||mv<=0||!(id.indexOf('POS-')===0||(account&&mv>0)))return null;
-  return {positionId:id,ticker,account:account||'Unknown',quantity:foA22Num_(foA22Cell_(r,h,'Quantity')),currentPrice:foA22Num_(foA22Cell_(r,h,'Current Price')),marketValue:mv,assetClass:foA22Text_(foA22Cell_(r,h,'Asset Class'))||'Unknown',sector:foA22Text_(foA22Cell_(r,h,'Sector'))||'Unknown',country:foA22Text_(foA22Cell_(r,h,'Country'))||'Unknown',currency:foA22Text_(foA22Cell_(r,h,'Currency'))||'Unknown',riskRating:foA22Text_(foA22Cell_(r,h,'Risk Rating')),notes:foA22Text_(foA22Cell_(r,h,'Notes')),company:foA22Text_(foA22Cell_(r,h,'Company'))};
+  return {positionId:id,ticker,account:account,quantity:foA22Num_(foA22Cell_(r,h,'Quantity')),currentPrice:foA22Num_(foA22Cell_(r,h,'Current Price')),marketValue:mv,assetClass:foA22Text_(foA22Cell_(r,h,'Asset Class'))||'Unknown',sector:foA22Text_(foA22Cell_(r,h,'Sector'))||'Unknown',country:foA22Text_(foA22Cell_(r,h,'Country'))||'Unknown',currency:foA22Text_(foA22Cell_(r,h,'Currency'))||'Unknown',riskRating:foA22Text_(foA22Cell_(r,h,'Risk Rating')),notes:foA22Text_(foA22Cell_(r,h,'Notes')),company:foA22Text_(foA22Cell_(r,h,'Company'))};
 }
 function foA22DataQuality_(p){return [[p.ticker,15],[p.account!=='Unknown',15],[p.quantity>0,10],[p.currentPrice>0,15],[p.marketValue>0,20],[p.assetClass!=='Unknown',10],[p.sector!=='Unknown',5],[p.currency!=='Unknown',5],[p.country!=='Unknown',5]].reduce((s,x)=>s+(x[0]?x[1]:0),0);}
 function foA22Concentration_(w){if(w<=5)return foA22Round_(w*2,1);if(w<=10)return foA22Round_(10+(w-5)*4,1);if(w<=15)return foA22Round_(30+(w-10)*6,1);if(w<=20)return foA22Round_(60+(w-15)*6,1);return foA22Clamp_(90+(w-20),0,100);}

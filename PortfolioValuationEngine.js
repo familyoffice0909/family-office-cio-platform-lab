@@ -40,23 +40,22 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
   const costBasisIndex = headers.indexOf('Cost Basis');
   const accountIndex = headers.indexOf('Account');
 
-  let totalMarketValue = 0;
-  let totalCostBasis = 0;
-  let valuedPositions = 0;
+  const valuedHoldings = [];
   let missingPriceCount = 0;
 
   for (let r = 1; r < values.length; r++) {
     const ticker = String(values[r][tickerIndex] || '').trim().toUpperCase();
     if (!ticker) continue;
 
-    const account =
-      accountIndex >= 0 ? String(values[r][accountIndex] || '').trim().toUpperCase() : '';
+    const account = accountIndex >= 0 ? values[r][accountIndex] : '';
 
     const quantity = foSafeNumber_(values[r][quantityIndex]);
     const price = foSafeNumber_(values[r][priceIndex]);
     const costBasis = costBasisIndex >= 0 ? foSafeNumber_(values[r][costBasisIndex]) : 0;
 
-    if (foIsExcludedValuationRow_(account, ticker, quantity, price)) continue;
+    if (foIsExcludedValuationRow_(
+      String(account || '').trim().toUpperCase(), ticker, quantity, price
+    )) continue;
 
     if (quantity <= 0 || price <= 0) {
       missingPriceCount++;
@@ -67,10 +66,26 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
 
     portfolioSheet.getRange(r + 1, marketValueIndex + 1).setValue(marketValue);
 
-    totalMarketValue += foSafeNumber_(marketValue);
-    totalCostBasis += foSafeNumber_(costBasis);
-    valuedPositions++;
+    valuedHoldings.push({
+      ticker: ticker,
+      account: account,
+      quantity: quantity,
+      currentPrice: price,
+      currentPriceCurrency: FO_CONFIG.BASE_CURRENCY,
+      marketValue: marketValue,
+      marketValueCurrency: FO_CONFIG.BASE_CURRENCY,
+      costBasis: costBasis
+    });
   }
+
+  const aggregation = foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(
+      valuedHoldings,
+      FO_CONFIG.BASE_CURRENCY
+    )
+  );
+  const totalMarketValue = aggregation.totalMarketValue;
+  const totalCostBasis = aggregation.totalCostBasis;
 
   const unrealizedGainLoss = totalMarketValue - totalCostBasis;
   const unrealizedGainLossPct =
@@ -82,7 +97,7 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
     totalCostBasis: totalCostBasis,
     unrealizedGainLoss: unrealizedGainLoss,
     unrealizedGainLossPct: unrealizedGainLossPct,
-    valuedPositions: valuedPositions,
+    valuedPositions: aggregation.holdingCount,
     missingPriceCount: missingPriceCount
   };
 }

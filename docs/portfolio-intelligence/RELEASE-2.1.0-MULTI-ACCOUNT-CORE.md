@@ -1,166 +1,142 @@
-# Release 2.1.0 — Multi-Account Portfolio Intelligence Core
+# Release 2.1.0 RC2 — Multi-Account Portfolio Intelligence Core
 
 - **Owner:** Portfolio Domain Owner
-- **Change classification:** Standard governed additive runtime change
-- **Status:** Feature implementation complete; review and Lab validation pending
-- **Target:** `origin/develop`
-- **Release authority:** Human review, certification, merge, tag, deployment, and production promotion remain pending
+- **Change classification:** Standard governed additive remediation
+- **Status:** RC2 implemented; independent review and Lab validation pending
+- **Version metadata:** `v2.1.0-rc.2` / `CB-002`
+- **Target:** draft PR #8 into `origin/develop`
+- **Release authority:** Human architecture review, certification, merge, tag, deployment, and production promotion remain pending
 
-## Objective and scope
+## Objective, scope, and non-goals
 
-Release 2.1.0 adds a deterministic multi-account portfolio intelligence core
-without changing the platform's authoritative workbook, orchestration order,
-investment policy, risk thresholds, or execution authority.
+RC2 resolves the Architecture Review blockers found in the first Release 2.1.0
+candidate while preserving the accepted Release 2.0-era workbook architecture
+and all existing public entry points and worksheet schemas. It introduces no
+new product capability, persistent source, worksheet, dependency, network
+integration, scope, trigger, investment threshold, trading rule, or execution
+authority.
 
-The release includes:
-
-- `InvestmentAccount`, `AccountType`, `Holdings`, and `HouseholdPortfolio` domain contracts;
-- an in-memory `AccountRegistry` with `addAccount()`, `removeAccount()`,
-  `updateHoldings()`, `refreshMarketValues()`, and `getAccounts()`;
-- household aggregation across every account for sector, country, currency,
-  asset class, and largest security exposure;
-- duplicate holdings plus descriptive sector, currency, and security
-  concentration views; and
-- automatic migration of legacy single-account holdings and blank account
-  values to `Default Account`.
+The remediation establishes one household aggregation authority, an explicit
+base-currency market-value contract, canonical account/security identities,
+defined duplicate semantics, strict domain construction, release lineage, and
+regression coverage.
 
 ## Architecture and ownership
 
 The [Family Office Portfolio Dashboard remains authoritative](../architecture/ARCHITECTURE-OWNERSHIP-POLICY.md)
 for operational holdings and portfolio state. `MultiAccountPortfolioCore.js`
-provides in-memory domain objects and calculations for one Apps Script
-execution. It adds no worksheet, database, external source, authorization
-scope, dependency, trigger, or cross-workbook access.
+provides in-memory objects and calculations for one Apps Script execution. The
+domain `AccountRegistry` remains separate from the platform
+[Registry Authority](../architecture/R1.3.1.1-REGISTRY-AUTHORITY.md).
 
-The domain `AccountRegistry` is not the platform
-[Registry Authority](../architecture/R1.3.1.1-REGISTRY-AUTHORITY.md). It owns a
-bounded collection of investment accounts supplied by the existing portfolio
-source during computation; it does not register platform components or persist
-business state.
+`foAggregateHouseholdPortfolio()` is now the single source for household total
+market value, account/sector/country/currency/asset-class exposure, security
+concentration, and duplicate classification. Unified Portfolio Intelligence,
+Duplicate Exposure Analysis, Portfolio Engine Summary, Portfolio Performance,
+Portfolio Valuation, Portfolio State, and Portfolio Exposure Attribution
+consume its immutable output, as do the existing attribution, coverage, risk,
+legacy-state, and executive-reporting calculations that require household
+totals or exposure. Projections retain prior result and worksheet shapes. See
+the canonical
+[API contract](PORTFOLIO-AGGREGATION-API.md).
 
-This is a compatible implementation inside the accepted Portfolio domain and
-does not meet an ADR trigger in the
-[Architecture Principles](../engineering/ARCHITECTURE_PRINCIPLES.md): no source
-of truth, workbook boundary, public worksheet schema, orchestration failure
-semantics, investment rule, authorization scope, or platform pattern is
-replaced. Human architecture review is still required before release closure.
+This remains a compatible implementation within the accepted Portfolio domain
+and does not meet an ADR trigger: no authority, workbook boundary, public
+worksheet schema, orchestration/failure semantics, authorization scope,
+investment rule, or platform pattern is replaced. Human architecture review is
+still required before release closure.
 
-## Domain contracts
+## Market-value contract
 
-### AccountType
+RC2 adopts Option A: all `marketValue` values are household-base-currency
+amounts before aggregation. Native holding `currency` remains descriptive.
+Explicit valuation/price currency metadata must match the household base
+currency or construction fails. Legacy `marketValue` without separate unit
+metadata retains the established Portfolio Master base-currency meaning.
+Governed FX conversion, when needed, occurs upstream; the aggregation engine
+does not convert or silently mix currencies.
 
-`AccountType` is an immutable enumeration covering `DEFAULT`, `TFSA`, `RRSP`,
-`LIRA`, `RESP`, `FHSA`, `TAXABLE`, `CORPORATE`, `TRUST`, `CASH`, and `OTHER`.
-Unsupported values fail closed. Account names that do not exactly identify a
-governed type remain `OTHER`; the implementation does not infer tax or legal
-status.
+## Domain and identity contracts
 
-### Holdings
+Direct `InvestmentAccount` construction requires ID, name, type, currency, and
+holdings. Only the legacy ingestion adapter supplies documented defaults.
+Returned accounts, holdings, household portfolios, and aggregation results are
+immutable; registry reads remain defensive.
 
-Each holding has a case-normalized `securityId` and `ticker`, descriptive name,
-quantity, current price, market value, sector, country, currency, and asset
-class. `securityId` falls back to ticker. Missing dimensions become `Unknown`.
-Market value uses an explicit value when supplied, otherwise quantity multiplied
-by current price, otherwise zero. Non-finite or negative numeric values fail
-closed.
+Account identity is normalized at ingestion. Blank values become
+`DEFAULT-ACCOUNT` / `Default Account`, as does the legacy `Unknown` placeholder;
+known account names are matched without case or surrounding-whitespace
+sensitivity. Consumers use canonical IDs/names, not raw worksheet values.
 
-### InvestmentAccount and HouseholdPortfolio
+Security identity precedence is canonical security ID, security ID, ISIN,
+CUSIP, SEDOL, then uppercase ticker fallback. Identity source remains visible
+in output. Different ticker labels with the same canonical ID aggregate; the
+same ticker with different canonical IDs does not.
 
-An investment account requires a unique account ID, name, account type,
-currency, and holdings collection. A household portfolio contains a
-case-insensitively unique account collection and a base currency. Returned
-domain objects and holding records are immutable; registry discovery returns a
-defensive account array.
+## Duplicate rules
 
-## Registry behavior
+- Cross-account duplicates share a canonical security identity across two or
+  more canonical account IDs.
+- Same-account duplicates share a canonical security identity across two or
+  more holding rows within one canonical account.
+- Matching rows aggregate market value, cost basis, holding count, and account
+  membership before classification.
+- Duplicate results are descriptive and add no warning, breach, or trading
+  policy.
 
-- `addAccount()` rejects duplicate account IDs.
-- `removeAccount()` and `updateHoldings()` reject unknown accounts.
-- `updateHoldings()` replaces one account's complete holdings collection after
-  validation.
-- `refreshMarketValues()` accepts a caller-supplied price function or map,
-  validates every supplied price, and atomically replaces account snapshots.
-  Missing prices retain their prior values.
-- `getAccounts()` returns a defensive array whose mutation cannot change the
-  registry.
-
-The registry is intentionally in-memory. Persistence continues to flow through
-the existing governed portfolio source and spreadsheet services.
-
-## Unified intelligence and duplicate exposure
-
-All allocations are market-value weighted and sorted deterministically by
-descending market value, then name. Largest holdings aggregate the same
-`securityId` across accounts. Duplicate holdings require exposure to the same
-security in more than one distinct account.
-
-Sector, currency, and security concentration outputs are descriptive ranked
-exposures with market value and portfolio weight. Release 2.1.0 deliberately
-does not add warning or breach thresholds because investment and risk policy is
-outside this release's approved scope.
+The existing `duplicateHoldings` projection remains a cross-account alias;
+explicit cross-account, same-account, and all-duplicate collections are
+additive.
 
 ## Backward compatibility and migration
 
-Legacy inputs that contain a holdings or positions array without an accounts
-collection are wrapped automatically in:
+Legacy single-account holdings are wrapped automatically in the documented
+default account. Mixed named/blank Portfolio Master rows are normalized at
+read time without rewriting the source worksheet. Existing Portfolio Snapshot,
+Portfolio Engine Summary, Portfolio Performance, Portfolio Valuation,
+Portfolio State, and Portfolio Exposure Attribution worksheet schemas are
+unchanged. Existing public result fields remain; RC2 additions are additive.
 
-- account ID: `DEFAULT-ACCOUNT`;
-- account name: `Default Account`; and
-- account type: `DEFAULT`.
+See the [RC2 migration guide](MIGRATION-2.1.0-RC2.md).
 
-When Portfolio Master contains a mixture of named and blank accounts, blank
-rows map to `Default Account` and named rows retain their account grouping.
-Migration is a read-time compatibility adapter and does not rewrite the source
-worksheet.
+## Release lineage
 
-`foBuildPortfolioSnapshot()` retains its existing public entry point,
-20-column Portfolio Snapshot worksheet contract, summary write, and
-orchestration position. Its returned result adds `accountCount`,
-`intelligence`, and `duplicateExposure`; existing result fields are unchanged.
+The repository contains no Release 2.0 tag or certified baseline. RC2 records
+the actual ancestry instead of inventing one:
 
-## Validation plan and observed local evidence
+1. production release `v1.3.0` (`659ad79`);
+2. Engineering Lab governance/registry lineage through `r1.3.1.1` on
+   `origin/develop`; and
+3. draft candidate `v2.1.0-rc.2` on PR #8.
 
-The feature branch must pass:
+`CB-002` remains the configuration baseline. No RC2 tag is created while the
+pull request is draft.
 
-- `npm test` — deterministic domain, registry, aggregation, duplicate,
-  negative-input, refresh, migration, and PortfolioEngine compatibility tests;
-- `npm run validate` — manifest, required-file, duplicate-global, module,
-  version, direct-workbook-access, secret, and smoke-function checks;
-- `npm run lint` — repository lint rules; and
-- `npm run smoke:inventory` — source inventory including
-  `foRunMultiAccountPortfolioCoreSmokeTest()`.
+## Validation plan and evidence boundary
 
-Observed local development validation on 2026-07-18:
+Required repository checks are `npm ci`, `npm test`, `npm run lint`,
+`npm run validate`, `npm run smoke:inventory`, `git diff --check`, Apps Script
+source/status validation, and synthetic workbook regression tests. Coverage
+includes empty portfolios, mixed native currencies, explicit currency
+mismatches, account case/whitespace/default normalization, same- and
+cross-account duplicates, security-ID precedence, exposure reconciliation,
+large households, existing worksheet shapes, and deterministic smoke entry
+points.
 
-- `npm test` — PASS, 4 suites and 43 tests;
-- `npm run validate` — PASS, 71 JavaScript files, 648 global functions, 44
-  smoke-test functions, zero warnings, and zero errors;
-- `npm run lint` — PASS;
-- `npm run smoke:inventory` — PASS, 44 source entry points; and
-- local-link validation — PASS for all five changed documentation files.
+Local Node/Jest/static checks do not constitute Apps Script Lab execution,
+live workbook inspection, CI, certification, or release approval. The Release
+Validator must run `foRunMultiAccountPortfolioCoreSmokeTest()`, the affected
+portfolio smoke tests, and workbook inspection in the designated Lab against
+the exact reviewed commit before the draft may advance.
 
-The smoke function has deterministic unit coverage, but source inventory and
-Node execution are not Apps Script runtime evidence. After independent review
-and integration, the Release Validator must run the core and Portfolio Engine
-smoke tests in the designated Lab Apps Script project, inspect the affected Lab
-Portfolio Snapshot output, verify blank-account compatibility, confirm no
-unintended writes, and record the exact commit and environment.
+## Operational impact, risks, and rollback
 
-## Operational impact, limitations, and rollback
+No new network call, scope, trigger, worksheet, or storage is introduced.
+Runtime work remains linear in the number of holdings plus deterministic group
+sorting. The principal remaining risk is unobserved behavior in the designated
+Apps Script Lab/workbook until human-controlled runtime validation occurs.
 
-- No new network call, authorization scope, trigger, worksheet, or persistent
-  storage is introduced.
-- Market-value refresh requires caller-supplied prices; direct broker or market
-  data ingestion is not added.
-- Missing country and other dimensions remain visible as `Unknown` rather than
-  being inferred.
-- Calculations are descriptive and advisory; no trade or allocation action is
-  authorized.
-
-Before merge, rollback is branch deletion or abandoning the pull request.
-After merge but before production promotion, use a reviewed Git revert of the
-Release 2.1.0 commits. If promoted later, follow the
-[Release Policy rollback process](../engineering/RELEASE_POLICY.md#rollback-and-forward-recovery),
-redeploy the last approved production commit, and rerun the governed portfolio
-and platform checks. No worksheet restoration is expected because this release
-does not add or migrate persisted source data.
+Before merge, rollback is a reviewed revert or abandonment of the RC2 branch.
+After a future merge, use a reviewed Git revert, redeploy the last approved
+commit under the Release Policy, and rerun portfolio/platform checks. No
+worksheet restoration is expected because RC2 changes no persisted schema.
