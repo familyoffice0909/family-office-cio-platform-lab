@@ -4,6 +4,16 @@
  */
 
 function foRunProductionCertification() {
+  return foWithRuntimeLock_(
+    'Run Production Certification',
+    function() {
+      return foRunProductionCertificationProtected_();
+    }
+  );
+}
+
+function foRunProductionCertificationProtected_() {
+  foAssertRuntimeLockHeld_('Run Production Certification');
   const module = 'ProductionCertificationEngine';
   const dashboard = foDashboard_();
   const runId = foNowId_('CERT-RUN');

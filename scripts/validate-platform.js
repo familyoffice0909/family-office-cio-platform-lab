@@ -38,6 +38,8 @@ const requiredFiles = [
   'Config.js',
   'Bootstrap.js',
   'HealthCheck.js',
+  'RuntimeSafety.js',
+  'RuntimeLockService.js',
   'SpreadsheetService.js',
   'ValidationService.js',
   'ModuleRegistry.js',
@@ -67,6 +69,21 @@ if (exists('appsscript.json')) {
 
 const sources = jsFiles().map((file) => ({ file, text: read(file) }));
 const combined = sources.map((item) => item.text).join('\n');
+
+const directWorkbookOpenRegex = /SpreadsheetApp\s*\.\s*openBy(?:Id|Url)\s*\(/g;
+let directWorkbookOpenCount = 0;
+
+for (const source of sources) {
+  const directWorkbookOpens = source.text.match(directWorkbookOpenRegex) || [];
+  directWorkbookOpenCount += directWorkbookOpens.length;
+
+  if (source.file !== 'SpreadsheetService.js' && directWorkbookOpens.length > 0) {
+    fail(
+      'Direct workbook access must flow through SpreadsheetService.js: ' +
+      source.file
+    );
+  }
+}
 
 const functionLocations = new Map();
 const functionRegex = /^\s*function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
@@ -218,6 +235,10 @@ if (smokeTests.length === 0) {
 console.log(`Validated ${sources.length} JavaScript files.`);
 console.log(`Discovered ${functionLocations.size} global functions.`);
 console.log(`Discovered ${smokeTests.length} smoke-test functions.`);
+console.log(
+  `Validated ${directWorkbookOpenCount} direct workbook open(s), ` +
+  'confined to SpreadsheetService.js.'
+);
 console.log(`Warnings: ${warnings.length}`);
 console.log(`Errors: ${errors.length}`);
 

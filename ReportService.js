@@ -1,4 +1,11 @@
 function foArchiveReport(report) {
+  return foWithRuntimeLock_('Archive report', function() {
+    return foArchiveReportProtected_(report);
+  });
+}
+
+function foArchiveReportProtected_(report) {
+  foAssertRuntimeLockHeld_('Archive report');
   const module = 'ReportService';
 
   try {

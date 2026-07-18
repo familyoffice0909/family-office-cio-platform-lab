@@ -39,9 +39,7 @@ function foA2161EvaluateTimezone_(timezoneId) {
 
 function foCheckOperatingTimezonesA2161() {
   const dashboard = foDashboard_();
-  const ledger = SpreadsheetApp.openById(
-    FO_A2161_LEDGER_SPREADSHEET_ID
-  );
+  const ledger = foLedger_();
 
   const result = {
     dashboard: foA2161EvaluateTimezone_(
@@ -66,7 +64,6 @@ function foCheckOperatingTimezonesA2161() {
   return result;
 }
 
-const FO_A2161_LEDGER_SPREADSHEET_ID = '1_NIOTk1bC0QilRDfo8nKshoLh9Xdm1FWdDybsNvAo8k';
 const FO_A2161_ARCHITECTURE_SHEETS = [
   'Architecture Registry','Architecture Dependencies','Architecture Ownership',
   'Production Baseline','Architecture Freeze Validation'
@@ -140,7 +137,7 @@ function foRunArchitectureRemediationA2161(){
 }
 
 function foGenerateArchitectureRegistryA2161(){
-  const d=foDashboard_(), l=SpreadsheetApp.openById(FO_A2161_LEDGER_SPREADSHEET_ID);
+  const d=foDashboard_(), l=foLedger_();
   const headers=['Component ID','Workbook','Workbook ID','Component','Component Type','Domain','Layer','Owner','Source of Truth','Upstream Dependencies','Downstream Consumers','Editable','Production Critical','Status','Architecture Version','Platform Version','Baseline','Last Reviewed','Notes'];
   const s=foA2161Ensure_(d,'Architecture Registry',headers), now=new Date(), rows=[];
   d.getSheets().forEach((sh,i)=>{const p=foA2161ClassifyDashboard_(sh.getName()); rows.push(['ARCH-DASH-'+Utilities.formatString('%03d',i+1),d.getName(),d.getId(),sh.getName(),p.type,p.domain,p.layer,p.owner,p.sor?'YES':'NO',foA2161Up_(sh.getName()).join(' | '),foA2161Down_(sh.getName()).join(' | '),p.edit?'YES':'NO',p.critical?'YES':'NO',p.status,FO_A2161_VERSION,FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE,now,p.notes]);});
@@ -149,7 +146,7 @@ function foGenerateArchitectureRegistryA2161(){
 }
 
 function foGenerateDependencyInventoryA2161(){
-  const d=foDashboard_(), l=SpreadsheetApp.openById(FO_A2161_LEDGER_SPREADSHEET_ID);
+  const d=foDashboard_(), l=foLedger_();
   const s=foA2161Ensure_(d,'Architecture Dependencies',['Dependency ID','Upstream Workbook','Upstream Component','Downstream Workbook','Downstream Component','Dependency Type','Criticality','Status','Architecture Version','Platform Version','Baseline','Last Reviewed','Notes']);
   const dn=new Set(d.getSheets().map(x=>x.getName())), ln=new Set(l.getSheets().map(x=>x.getName())), now=new Date();
   const rows=FO_A2161_CANONICAL_DEPENDENCIES.map((x,i)=>{const u=foA2161Resolve_(x[0]), v=foA2161Resolve_(x[1]); const ue=u.w==='Dashboard'?dn.has(u.c):ln.has(u.c), ve=v.w==='Dashboard'?dn.has(v.c):ln.has(v.c); return ['ARCH-DEP-'+Utilities.formatString('%03d',i+1),u.w==='Dashboard'?d.getName():l.getName(),u.c,v.w==='Dashboard'?d.getName():l.getName(),v.c,x[2],x[3],ue&&ve?'ACTIVE':'BROKEN',FO_A2161_VERSION,FO_CONFIG.PLATFORM_VERSION,FO_CONFIG.BASELINE,now,(!ue?'Missing upstream. ':'')+(!ve?'Missing downstream.':'')];});
@@ -164,7 +161,7 @@ function foGenerateOwnershipMatrixA2161(){
 }
 
 function foValidateInvestmentLedgerA2161(){
-  const l=SpreadsheetApp.openById(FO_A2161_LEDGER_SPREADSHEET_ID), r=l.getSheetByName('Recommendations'), controls=[];
+  const l=foLedger_(), r=l.getSheetByName('Recommendations'), controls=[];
   if(!r){controls.push({control:'Recommendations worksheet',status:'FAIL',severity:'CRITICAL',details:'Missing.'});}
   else{const headers=r.getRange(1,1,1,r.getLastColumn()).getDisplayValues()[0], i=headers.indexOf('Event ID'); controls.push({control:'Immutable Event ID schema',status:i>=0?'PASS':'FAIL',severity:i>=0?'NONE':'CRITICAL',details:i>=0?'Event ID present.':'Event ID missing.'}); if(i>=0&&r.getLastRow()>1){const vals=r.getRange(2,i+1,r.getLastRow()-1,1).getDisplayValues().flat().filter(Boolean), u=new Set(vals); controls.push({control:'Immutable Event ID uniqueness',status:vals.length===u.size?'PASS':'FAIL',severity:vals.length===u.size?'NONE':'CRITICAL',details:vals.length+' populated Event ID(s).'});}}
   controls.push({control:'Ledger timezone',status:foA2161IsOperatingTimezone_(l.getSpreadsheetTimeZone())?'PASS':'FAIL',severity:foA2161IsOperatingTimezone_(l.getSpreadsheetTimeZone())?'NONE':'HIGH',details:'Ledger timezone: '+l.getSpreadsheetTimeZone()});
@@ -179,7 +176,7 @@ function foFinalizeProductionBaselineA2161(gitCommit,releaseTag){
 }
 
 function foRunArchitectureRemediationValidationA2161(){
-  const d=foDashboard_(), l=SpreadsheetApp.openById(FO_A2161_LEDGER_SPREADSHEET_ID), now=new Date(), id='ARCH-REM-VAL-'+Utilities.formatDate(now,FO_CONFIG.TIMEZONE||Session.getScriptTimeZone(),'yyyyMMdd-HHmmss');
+  const d=foDashboard_(), l=foLedger_(), now=new Date(), id='ARCH-REM-VAL-'+Utilities.formatDate(now,FO_CONFIG.TIMEZONE||Session.getScriptTimeZone(),'yyyyMMdd-HHmmss');
   const reg=d.getSheetByName('Architecture Registry'), dep=d.getSheetByName('Architecture Dependencies'), own=d.getSheetByName('Architecture Ownership'), base=d.getSheetByName('Production Baseline'), c=[];
   c.push(foA2161Ctl_('REGISTRY','Investment Ledger registered',reg&&foA2161Count_(reg,'Workbook',l.getName())===l.getSheets().length,'CRITICAL',reg?foA2161Count_(reg,'Workbook',l.getName())+' of '+l.getSheets().length:'Registry missing.'));
   c.push(foA2161Ctl_('REGISTRY','Architecture controls self-registered',reg&&FO_A2161_ARCHITECTURE_SHEETS.every(n=>foA2161Contains_(reg,d.getName(),n)),'HIGH','All architecture controls must be registered.'));

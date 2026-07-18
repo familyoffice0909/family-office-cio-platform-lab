@@ -10,7 +10,10 @@
 - [ ] Run `npm install`
 - [ ] Run `npx clasp login`
 - [ ] Create local `.clasp.json`
-- [ ] Add `SPREADSHEET_ID` Script Property
+- [ ] Add `FO_ENVIRONMENT` Script Property (`LAB` or `PRODUCTION`)
+- [ ] Add `FO_DASHBOARD_SPREADSHEET_ID` Script Property
+- [ ] Add `FO_LEDGER_SPREADSHEET_ID` Script Property
+- [ ] For Production only, set `FO_PRODUCTION_WRITE_ENABLED` to `TRUE` through the governed production setup process
 - [ ] Add `CLASPRC_JSON` GitHub secret
 - [ ] Add `CLASP_JSON` GitHub secret
 - [ ] Run the CI workflow
