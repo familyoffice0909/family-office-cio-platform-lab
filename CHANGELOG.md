@@ -24,6 +24,24 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Decision explainability
 - Recommendation change detection
 
+## [2.1.0] - Unreleased
+
+### Added
+
+- Multi-account portfolio domain model covering `InvestmentAccount`, `AccountType`, `Holdings`, and `HouseholdPortfolio`
+- In-memory account registry operations for account lifecycle, holdings replacement, supplied-price market-value refresh, and defensive account discovery
+- Unified household aggregation for sector, country, currency, asset-class, and largest-security exposure
+- Duplicate-holding and descriptive sector, currency, and security concentration analysis
+- Automatic compatibility migration of legacy single-account holdings to `Default Account`
+
+### Changed
+
+- Portfolio snapshots now interpret a missing legacy account as `Default Account` and return additive household intelligence without changing the existing snapshot worksheet schema
+
+### Validation
+
+- Added deterministic Jest coverage and an Apps Script smoke-test entry point; Lab Apps Script and workbook validation remain release gates after review and integration
+
 ## [1.3.0] - 2026-07-16
 
 ### Added
