@@ -1,6 +1,7 @@
 /************************************************************
  * PortfolioEngine.gs
  * Wave 1C.4 — Portfolio Engine
+ * Release 2.1.0 — Multi-account portfolio intelligence integration
  ************************************************************/
 
 function foBuildPortfolioSnapshot() {
@@ -56,9 +57,15 @@ function foBuildPortfolioSnapshot() {
           foGetVal_(row, headers, 'Company') ||
           foGetVal_(row, headers, 'Company / Fund') ||
           '',
-        account: foGetVal_(row, headers, 'Account') || '',
+        account:
+          foGetVal_(row, headers, 'Account') || FO_DEFAULT_ACCOUNT_NAME,
         assetClass: foGetVal_(row, headers, 'Asset Class') || '',
         sector: foGetVal_(row, headers, 'Sector') || '',
+        country: foGetVal_(row, headers, 'Country') || '',
+        currency:
+          foGetVal_(row, headers, 'Currency') ||
+          foGetVal_(row, headers, 'Native Currency') ||
+          FO_CONFIG.BASE_CURRENCY,
         theme: foGetVal_(row, headers, 'Theme') || '',
         quantity: quantity,
         currentPrice: currentPrice,
@@ -71,6 +78,16 @@ function foBuildPortfolioSnapshot() {
     const totalMarketValue = positions.reduce(function(sum, p) {
       return sum + (Number(p.marketValue) || 0);
     }, 0);
+    const householdPortfolio = foCreateHouseholdPortfolioFromPositions(
+      positions,
+      FO_CONFIG.BASE_CURRENCY
+    );
+    const intelligence = foBuildUnifiedPortfolioIntelligence(
+      householdPortfolio
+    );
+    const duplicateExposure = foAnalyzeDuplicateExposure(
+      householdPortfolio
+    );
 
     const snapshotSheet = foEnsureSheet_(dashboard, 'Portfolio Snapshot', [
       'Timestamp',
@@ -167,7 +184,10 @@ function foBuildPortfolioSnapshot() {
       status: 'SUCCESS',
       snapshotId: snapshotId,
       positions: positions.length,
-      marketValue: totalMarketValue
+      marketValue: totalMarketValue,
+      accountCount: intelligence.accountCount,
+      intelligence: intelligence,
+      duplicateExposure: duplicateExposure
     };
 
   } catch (error) {
