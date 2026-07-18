@@ -46,11 +46,15 @@ This roadmap organizes platform delivery into five institutional epics. Status i
   - CI complete
   - Apps Script Lab validation pending
   - Merge pending
+- R1.3.1 — Architecture Enforcement
+  - R1.3.1.1 — Registry Authority
+    - Implementation and automated tests complete on the feature branch
+    - ADR, architecture documentation, and validation evidence prepared
+    - Architecture review, Draft PR review, merge, and release closure pending
 
 **Future:**
 
 - R1.3.1 — Architecture Enforcement
-  - Registry Authority
   - Writer Authority
   - Reporting Authority
   - Failure Authority

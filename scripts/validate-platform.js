@@ -42,6 +42,7 @@ const requiredFiles = [
   'RuntimeLockService.js',
   'SpreadsheetService.js',
   'ValidationService.js',
+  'RegistryAuthority.js',
   'ModuleRegistry.js',
   'AutonomousCioOrchestrator.js',
   'Menu.js',

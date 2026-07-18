@@ -37,6 +37,17 @@ Family Office CIO Platform
 - Backup
 - Scheduling and triggers
 
+#### Registry Authority
+
+R1.3.1.1 adds an in-memory Registry Authority for governed registration,
+metadata-only discovery, and validation of platform registries. The authority
+initially adopts only `FO_SHEETS`, `FO_REQUIRED_DASHBOARD_SHEETS`, and the
+Market Symbol Registry. Each existing registry retains its business data and
+direct consumer contracts. The authority performs no workbook access and does
+not change orchestration or runtime behavior. See the
+[Registry Authority architecture](architecture/R1.3.1.1-REGISTRY-AUTHORITY.md)
+and [ADR-004](adr/ADR-004-REGISTRY-AUTHORITY.md).
+
 #### Runtime safety (reduced scope)
 
 Governed Dashboard and Ledger access flows through `foDashboard_()` and
@@ -108,5 +119,6 @@ The Autonomous CIO Orchestrator executes registered modules in controlled order 
 - [ADR-001 — Production Architecture and Workbook Boundaries](architecture/ADR-001-PRODUCTION-ARCHITECTURE.md)
 - [ADR-002 — Cross-Workbook Governance and Recommendation Event Contract](architecture/ADR-002-CROSS-WORKBOOK-GOVERNANCE.md)
 - [ADR-003 — Position and Portfolio Risk Scoring](risk/ADR-003-POSITION-PORTFOLIO-RISK-SCORING.md)
+- [ADR-004 — Registry Authority](adr/ADR-004-REGISTRY-AUTHORITY.md)
 - [Architecture Ownership Policy](architecture/ARCHITECTURE-OWNERSHIP-POLICY.md)
 - [Production Dependency Baseline](architecture/PRODUCTION-DEPENDENCY-BASELINE.md)
