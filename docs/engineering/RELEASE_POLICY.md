@@ -4,6 +4,8 @@
 
 This policy governs versioning, Lab certification, promotion to the production repository, Apps Script deployment, and post-deployment verification. The canonical step-by-step control record is the [Release Checklist](../RELEASE_CHECKLIST.md).
 
+Institutional gate names, accountable decisions, and blocking conditions are defined in [Release Governance](RELEASE_GOVERNANCE.md).
+
 ## Release authorities
 
 - `origin/develop` is the integrated Engineering Lab baseline.

@@ -4,6 +4,8 @@
 
 This workflow governs a change from intake through Lab validation and handoff to release. It applies to production code, Apps Script configuration, schemas, tests, automation, and documentation. Branch movement and production promotion are defined separately in [Branching Strategy](BRANCHING_STRATEGY.md) and [Release Policy](RELEASE_POLICY.md).
 
+The official stage model is the [SDLC](SDLC.md). The standalone [Definition of Ready](DEFINITION_OF_READY.md) and [Definition of Done](DEFINITION_OF_DONE.md) are the governing entry and wave-closure gates; the checklist below supplies additional development detail.
+
 ## Change lifecycle
 
 ### 1. Frame the wave
@@ -70,7 +72,7 @@ At minimum, inspect the diff, validate Markdown links, confirm only documentatio
 
 Evidence states the commit, wave/release, environment, baseline, timestamp, tester/operator, command or function, expected outcome, actual outcome, and artifact location. Use `PASS`, `PASS WITH WARNINGS`, or `FAIL` consistently. Never edit an old evidence record to represent a new run.
 
-## Definition of Done
+## Development completion checklist
 
 A change is done only when all applicable items are true:
 

@@ -79,6 +79,8 @@ An ADR is not required for a compatible implementation detail that stays inside 
 
 Include title and identifier, status, context, decision, alternatives considered, consequences, affected authorities/contracts, security and data implications, migration, validation, rollback, owners, and superseded decisions. Accepted ADRs are immutable; later changes use a superseding ADR.
 
+Use the repository-wide numbering, status lifecycle, register, and template in the [ADR Guide](../adr/README.md).
+
 ## Architecture Review checklist
 
 - [ ] Problem, scope, non-goals, and accountable owners are explicit.

@@ -9,6 +9,8 @@ This strategy separates daily Lab integration, certified release state, and prod
 
 Repository URLs and remote names must be verified before any push or promotion; a local alias alone is not proof of destination.
 
+Branch selection occurs after the [Definition of Ready](DEFINITION_OF_READY.md) and supports the official [SDLC](SDLC.md). Merge, release, and tagging authority remain governed by [Release Governance](RELEASE_GOVERNANCE.md).
+
 ## Long-lived branches
 
 | Branch | Authority | Permitted content |
@@ -37,6 +39,8 @@ Create branches from the correct base and use lowercase, hyphenated descriptions
 
 One branch contains one coherent wave or release concern. Delete it after merge and evidence retention. Do not keep long-running feature branches as alternative integration lines.
 
+The pattern families are `feature/*`, `hotfix/*`, and `release/*`; the table above defines their permitted bases and targets. `fix/*`, `docs/*`, `codex/*`, and `rollback/*` are governed supporting families and do not bypass the same review or protection rules.
+
 ## Normal flow
 
 1. Synchronize local references and branch from `origin/develop`.
@@ -52,6 +56,7 @@ Until CI is configured to run directly on pull requests targeting `develop`, the
 ## Merge and history policy
 
 - Use a pull request merge that preserves a clear relationship between wave, review, and resulting commit. Follow repository protection settings.
+- Merge only after required CI, tests, architecture review, release validation, independent approval, and resolved blocking comments are evidenced for the exact candidate.
 - Rebase or merge the base branch before final approval when needed; never rewrite a branch after others depend on it without coordination.
 - Tags identify immutable release or certification commits and are never moved or reused.
 - A release branch changes only release metadata, documentation, or defects discovered during release qualification. New feature scope returns to `develop`.
@@ -69,3 +74,5 @@ Until CI is configured to run directly on pull requests targeting `develop`, the
 ## Branch protection expectations
 
 Require pull requests, passing required status checks, no unresolved review conversations, up-to-date protected branches where practical, restricted force pushes/deletion, and authorized release actors. Material changes require independent approval. Repository administrators should not bypass protections except under a documented emergency procedure.
+
+Protect `main` and `develop` in the Lab repository and `main` in the production repository. No direct commits, force pushes, branch deletion, tag movement, or administrator bypass is permitted except through a documented, authorized emergency process with retained evidence.

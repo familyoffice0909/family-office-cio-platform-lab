@@ -12,7 +12,7 @@ Before proposing or making a change:
 2. Read [Engineering Guide](docs/engineering/ENGINEERING_GUIDE.md), [Architecture Principles](docs/engineering/ARCHITECTURE_PRINCIPLES.md), and the policy specific to the task.
 3. Search for an existing ADR, wave document, schema, service, test, or checklist before creating a competing artifact.
 4. Use the platform's established terminology, including *wave*, *baseline*, *certification*, *Family Office Portfolio Dashboard*, *Family Office Investment Ledger*, *engine-owned output*, and *governed additive change*.
-5. Treat accepted ADRs in `docs/architecture/` and `docs/risk/` as binding until superseded by another accepted ADR.
+5. Treat accepted ADRs registered in `docs/adr/README.md`, including historical records in `docs/architecture/` and `docs/risk/`, as binding until superseded by another accepted ADR.
 
 ## Non-negotiable boundaries
 
@@ -50,9 +50,13 @@ If instructions conflict, stop and surface the conflict. Repository-level requir
 
 ## Canonical governance references
 
+- [Engineering Governance](docs/engineering/ENGINEERING_GOVERNANCE.md)
 - [Engineering Guide](docs/engineering/ENGINEERING_GUIDE.md)
+- [SDLC](docs/engineering/SDLC.md)
 - [Development Workflow](docs/engineering/DEVELOPMENT_WORKFLOW.md)
 - [Branching Strategy](docs/engineering/BRANCHING_STRATEGY.md)
+- [Release Governance](docs/engineering/RELEASE_GOVERNANCE.md)
 - [Release Policy](docs/engineering/RELEASE_POLICY.md)
+- [ADR Guide](docs/adr/README.md)
 - [AI Collaboration Model](docs/engineering/AI_COLLABORATION_MODEL.md)
 - [Release Checklist](docs/RELEASE_CHECKLIST.md)

@@ -10,17 +10,23 @@ The guide does not redefine investment policy or the detailed architecture. Acce
 
 | Subject | Canonical document |
 |---|---|
-| Engineering governance and ownership | This guide |
+| Engineering governance and ownership | [Engineering Governance](ENGINEERING_GOVERNANCE.md) |
+| Governance orientation and shared terminology | This guide |
 | System structure and current layers | [Repository Architecture](../ARCHITECTURE.md) |
 | Durable architecture constraints and ADR triggers | [Architecture Principles](ARCHITECTURE_PRINCIPLES.md) |
+| ADR process, register, and template | [ADR Guide](../adr/README.md) |
 | Investment decision-support posture | [CIO Philosophy](CIO_PHILOSOPHY.md) |
+| Official lifecycle and entry/completion gates | [SDLC](SDLC.md), [Definition of Ready](DEFINITION_OF_READY.md), and [Definition of Done](DEFINITION_OF_DONE.md) |
 | Change lifecycle, tests, Definition of Done, PR review | [Development Workflow](DEVELOPMENT_WORKFLOW.md) |
 | Branch and remote rules | [Branching Strategy](BRANCHING_STRATEGY.md) |
+| Repository and quality conventions | [Repository Standards](REPOSITORY_STANDARDS.md) and [Quality Standards](QUALITY_STANDARDS.md) |
+| Engineering roles | [Roles and Responsibilities](ROLES_AND_RESPONSIBILITIES.md) |
 | Versioning, release gates, Lab-to-Production promotion | [Release Policy](RELEASE_POLICY.md) |
+| Institutional release gates | [Release Governance](RELEASE_GOVERNANCE.md) |
 | Operational release controls | [Release Checklist](../RELEASE_CHECKLIST.md) |
 | AI and human collaboration | [AI Collaboration Model](AI_COLLABORATION_MODEL.md) |
-| Binding architecture decisions | Accepted ADRs in [`docs/architecture/`](../architecture/) and [`docs/risk/`](../risk/) |
-| Current delivery priorities | [Roadmap](../ROADMAP.md) |
+| Binding architecture decisions | [ADR register](../adr/README.md), including historical records in [`docs/architecture/`](../architecture/) and [`docs/risk/`](../risk/) |
+| Current delivery priorities | [Engineering Roadmap](ROADMAP.md) |
 
 When documents conflict, use this order: legal, fiduciary, security, and privacy obligations; accepted ADRs; engineering policies; wave-specific designs and evidence; explanatory summaries. A later accepted ADR may supersede an earlier ADR and must say so explicitly. Historical evidence must not be rewritten to match a later policy.
 
