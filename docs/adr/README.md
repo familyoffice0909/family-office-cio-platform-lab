@@ -31,7 +31,7 @@ A compatible implementation detail within an accepted design normally does not n
 4. The numeric identifier is repository-wide across `docs/adr/`, `docs/architecture/`, and `docs/risk/`.
 5. New decision records belong in `docs/adr/`. Historical accepted ADRs remain at their original paths so links and audit history stay intact.
 
-The next available number is **ADR-004**. Confirm that it is still unused immediately before reserving it.
+The next available number is **ADR-005**. Confirm that it is still unused immediately before reserving it.
 
 ## Status lifecycle
 
@@ -63,6 +63,7 @@ Only the Chief Architect / Engineering Lead may record architecture acceptance. 
 | ADR-001 | Accepted | Production architecture and workbook boundaries | [Historical record](../architecture/ADR-001-PRODUCTION-ARCHITECTURE.md) |
 | ADR-002 | Accepted | Cross-workbook governance and recommendation-event contract | [Historical record](../architecture/ADR-002-CROSS-WORKBOOK-GOVERNANCE.md) |
 | ADR-003 | Accepted | Position and portfolio risk scoring | [Historical record](../risk/ADR-003-POSITION-PORTFOLIO-RISK-SCORING.md) |
+| ADR-004 | Accepted | Registry Authority governs registry metadata without replacing registry-owned business data | [Decision record](ADR-004-REGISTRY-AUTHORITY.md) |
 
 ## Review standard
 
