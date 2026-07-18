@@ -32,6 +32,8 @@ function jsFiles() {
 }
 
 const requiredFiles = [
+  'package.json',
+  'package-lock.json',
   'appsscript.json',
   'Config.js',
   'Bootstrap.js',
@@ -141,15 +143,39 @@ if (exists('AutonomousCioOrchestrator.js')) {
   }
 }
 
-if (exists('package.json') && exists('Config.js')) {
+if (
+  exists('package.json') &&
+  exists('package-lock.json') &&
+  exists('Config.js')
+) {
   try {
     const packageVersion = JSON.parse(read('package.json')).version;
+    const packageLock = JSON.parse(read('package-lock.json'));
+    const lockVersion = packageLock.version;
+    const lockRootVersion = packageLock.packages &&
+      packageLock.packages[''] &&
+      packageLock.packages[''].version;
     const config = read('Config.js');
     const versionMatch = config.match(/PLATFORM_VERSION\s*:\s*['"]v?(\d+\.\d+\.\d+)['"]/);
     if (!versionMatch) {
-      warn('Could not find PLATFORM_VERSION in Config.js');
-    } else if (versionMatch[1] !== packageVersion) {
-      fail(`Version mismatch: package.json=${packageVersion}, Config.js=${versionMatch[1]}`);
+      fail('Could not find PLATFORM_VERSION in Config.js');
+    }
+
+    const versions = [
+      ['package-lock.json top-level version', lockVersion],
+      ['package-lock.json root-package version', lockRootVersion],
+      ['Config.js PLATFORM_VERSION', versionMatch && versionMatch[1]]
+    ];
+
+    for (const [source, version] of versions) {
+      if (!version) {
+        fail(`Version is missing: ${source}`);
+      } else if (version !== packageVersion) {
+        fail(
+          `Version mismatch: package.json=${packageVersion}, ` +
+          `${source}=${version}`
+        );
+      }
     }
   } catch (error) {
     fail(`Version validation failed: ${error.message}`);

@@ -8,7 +8,9 @@ Institutional-grade Family Office CIO Platform built on Google Sheets and Google
 
 ## Current repository baseline
 
-- Release: `v1.3.0`
+- Platform version: `v1.3.0`
+- Configuration baseline: `CB-002`
+- Release: Unified Weekly CIO Reporting
 - Lab repository: `family-office-cio-platform-lab` (`origin`)
 - Production repository: `family-office-cio-platform` (`production`)
 - Development model: feature wave → `develop` → Lab validation → Lab-certified `main` → production promotion → controlled Apps Script deployment
