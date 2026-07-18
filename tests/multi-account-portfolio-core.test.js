@@ -15,7 +15,11 @@ const portfolioEngineSource = fs.readFileSync(
 );
 
 function createCore() {
-  const context = vm.createContext({ console });
+  const context = vm.createContext({
+    console,
+    foInfo_: () => undefined,
+    foError_: () => undefined
+  });
   vm.runInContext(source, context);
   return context;
 }
@@ -303,6 +307,18 @@ describe('Release 2.1.0 unified portfolio intelligence', () => {
       .toEqual(['Default Account', 'TFSA']);
     expect(Array.from(portfolio.accounts, (account) => account.type))
       .toEqual(['DEFAULT', 'TFSA']);
+  });
+
+  test('provides a deterministic Apps Script smoke-test entry point', () => {
+    const context = createCore();
+
+    expect(plain(context.foRunMultiAccountPortfolioCoreSmokeTest())).toEqual({
+      status: 'PASS',
+      accounts: 2,
+      holdings: 2,
+      totalMarketValue: 250,
+      duplicateHoldings: 1
+    });
   });
 });
 

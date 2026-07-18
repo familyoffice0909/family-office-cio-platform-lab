@@ -255,25 +255,31 @@ function foCreateHouseholdPortfolioFromPositions(positions, baseCurrency) {
   const currency = foPortfolioText_(baseCurrency, 'CAD').toUpperCase();
   const grouped = {};
   const order = [];
+  const usedAccountIds = {};
 
   positions.forEach(function(position) {
     const source = position && typeof position === 'object' ? position : {};
     const accountName = foPortfolioText_(source.account, FO_DEFAULT_ACCOUNT_NAME);
-    const accountId = accountName === FO_DEFAULT_ACCOUNT_NAME
+    const accountKey = accountName.toUpperCase();
+    let accountId = accountName === FO_DEFAULT_ACCOUNT_NAME
       ? FO_DEFAULT_ACCOUNT_ID
       : foAccountIdFromName_(accountName);
 
-    if (!grouped[accountId]) {
-      grouped[accountId] = {
+    if (!grouped[accountKey]) {
+      if (usedAccountIds[accountId]) {
+        accountId += '-' + (order.length + 1);
+      }
+      usedAccountIds[accountId] = true;
+      grouped[accountKey] = {
         accountId: accountId,
         name: accountName,
         type: foInferAccountType_(accountName),
         currency: currency,
         holdings: []
       };
-      order.push(accountId);
+      order.push(accountKey);
     }
-    grouped[accountId].holdings.push(source);
+    grouped[accountKey].holdings.push(source);
   });
 
   if (!order.length) {
@@ -282,8 +288,8 @@ function foCreateHouseholdPortfolioFromPositions(positions, baseCurrency) {
 
   return new HouseholdPortfolio({
     baseCurrency: currency,
-    accounts: order.map(function(accountId) {
-      return grouped[accountId];
+    accounts: order.map(function(accountKey) {
+      return grouped[accountKey];
     })
   });
 }
@@ -541,4 +547,67 @@ function foRequiredPortfolioNumber_(value, field) {
     throw new Error('Portfolio field must be a finite number: ' + field + '.');
   }
   return number;
+}
+
+function foRunMultiAccountPortfolioCoreSmokeTest() {
+  const module = 'MultiAccountPortfolioCore';
+
+  try {
+    foInfo_(module, 'Start', 'Multi-account portfolio core smoke test started.');
+
+    const portfolio = new HouseholdPortfolio({
+      accounts: [
+        {
+          accountId: 'SMOKE-ACCOUNT-1',
+          name: 'Synthetic Account 1',
+          type: AccountType.OTHER,
+          holdings: [{
+            ticker: 'SYNTHETIC-A',
+            marketValue: 100,
+            sector: 'Synthetic Sector',
+            country: 'Synthetic Country',
+            currency: 'CAD',
+            assetClass: 'Synthetic Asset'
+          }]
+        },
+        {
+          accountId: 'SMOKE-ACCOUNT-2',
+          name: 'Synthetic Account 2',
+          type: AccountType.OTHER,
+          holdings: [{
+            ticker: 'SYNTHETIC-A',
+            marketValue: 150,
+            sector: 'Synthetic Sector',
+            country: 'Synthetic Country',
+            currency: 'CAD',
+            assetClass: 'Synthetic Asset'
+          }]
+        }
+      ]
+    });
+    const intelligence = foBuildUnifiedPortfolioIntelligence(portfolio);
+    const duplicateExposure = foAnalyzeDuplicateExposure(portfolio);
+
+    if (
+      intelligence.accountCount !== 2 ||
+      intelligence.totalMarketValue !== 250 ||
+      duplicateExposure.duplicateHoldings.length !== 1
+    ) {
+      throw new Error('Synthetic multi-account intelligence result was invalid.');
+    }
+
+    const result = {
+      status: 'PASS',
+      accounts: intelligence.accountCount,
+      holdings: intelligence.holdingCount,
+      totalMarketValue: intelligence.totalMarketValue,
+      duplicateHoldings: duplicateExposure.duplicateHoldings.length
+    };
+
+    foInfo_(module, 'Complete', 'Multi-account portfolio core smoke test passed.');
+    return result;
+  } catch (error) {
+    foError_(module, 'Failure', error);
+    throw error;
+  }
 }

@@ -43,6 +43,7 @@ const requiredFiles = [
   'SpreadsheetService.js',
   'ValidationService.js',
   'RegistryAuthority.js',
+  'MultiAccountPortfolioCore.js',
   'ModuleRegistry.js',
   'AutonomousCioOrchestrator.js',
   'Menu.js',
