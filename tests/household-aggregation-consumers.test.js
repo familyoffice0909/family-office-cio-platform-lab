@@ -34,7 +34,7 @@ function baseContext(dashboard, written) {
     console,
     FO_CONFIG: {
       BASE_CURRENCY: 'CAD',
-      PLATFORM_VERSION: 'v2.1.0-rc.2',
+      PLATFORM_VERSION: 'v2.1.0-rc.3',
       BASELINE: 'CB-002'
     },
     FO_SHEETS: { PORTFOLIO_MASTER: 'Portfolio Master' },

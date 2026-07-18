@@ -1,25 +1,25 @@
-# Release 2.1.0 RC2 — Multi-Account Portfolio Intelligence Core
+# Release 2.1.0 RC3 — Multi-Account Portfolio Intelligence Core
 
 - **Owner:** Portfolio Domain Owner
 - **Change classification:** Standard governed additive remediation
-- **Status:** RC2 implemented; independent review and Lab validation pending
-- **Version metadata:** `v2.1.0-rc.2` / `CB-002`
+- **Status:** RC3 blockers remediated; independent review and Lab validation pending
+- **Version metadata:** `v2.1.0-rc.3` / `CB-002`
 - **Target:** draft PR #8 into `origin/develop`
 - **Release authority:** Human architecture review, certification, merge, tag, deployment, and production promotion remain pending
 
 ## Objective, scope, and non-goals
 
-RC2 resolves the Architecture Review blockers found in the first Release 2.1.0
-candidate while preserving the accepted Release 2.0-era workbook architecture
+RC3 resolves the remaining Architecture Review blockers found at RC2 commit
+`3d18546` while preserving the inherited `v1.3.0` workbook architecture
 and all existing public entry points and worksheet schemas. It introduces no
 new product capability, persistent source, worksheet, dependency, network
 integration, scope, trigger, investment threshold, trading rule, or execution
 authority.
 
-The remediation establishes one household aggregation authority, an explicit
-base-currency market-value contract, canonical account/security identities,
-defined duplicate semantics, strict domain construction, release lineage, and
-regression coverage.
+The remediation enforces one duplicate authority, preserves and validates
+valuation currency at ingress, makes ticker fallback collision-safe, bounds
+Portfolio Snapshot Step Log payloads, completes account normalization, and
+adds independent regression coverage. It does not add product scope.
 
 ## Architecture and ownership
 
@@ -48,13 +48,15 @@ still required before release closure.
 
 ## Market-value contract
 
-RC2 adopts Option A: all `marketValue` values are household-base-currency
+All `marketValue` values are household-base-currency
 amounts before aggregation. Native holding `currency` remains descriptive.
 Explicit valuation/price currency metadata must match the household base
 currency or construction fails. Legacy `marketValue` without separate unit
 metadata retains the established Portfolio Master base-currency meaning.
 Governed FX conversion, when needed, occurs upstream; the aggregation engine
-does not convert or silently mix currencies.
+does not convert or silently mix currencies. RC3 preserves explicit
+`valuationCurrency` through the ingestion adapter and Portfolio Master
+consumers before validation; it is never silently replaced by base currency.
 
 ## Domain and identity contracts
 
@@ -66,12 +68,16 @@ immutable; registry reads remain defensive.
 Account identity is normalized at ingestion. Blank values become
 `DEFAULT-ACCOUNT` / `Default Account`, as does the legacy `Unknown` placeholder;
 known account names are matched without case or surrounding-whitespace
-sensitivity. Consumers use canonical IDs/names, not raw worksheet values.
+sensitivity, and custom names use one uppercase canonical representation.
+An empty portfolio has zero accounts. Consumers use canonical IDs/names, not
+raw worksheet values.
 
 Security identity precedence is canonical security ID, security ID, ISIN,
-CUSIP, SEDOL, then uppercase ticker fallback. Identity source remains visible
-in output. Different ticker labels with the same canonical ID aggregate; the
-same ticker with different canonical IDs does not.
+CUSIP, SEDOL, exchange plus ticker, then uppercase ticker fallback. Identity
+source remains visible in output. Different ticker labels with the same
+canonical ID aggregate; the same ticker on different exchanges does not.
+Ticker-only rows remain separate when stronger or contradictory identity
+evidence makes the fallback ambiguous.
 
 ## Duplicate rules
 
@@ -83,6 +89,8 @@ same ticker with different canonical IDs does not.
   membership before classification.
 - Duplicate results are descriptive and add no warning, breach, or trading
   policy.
+- `PortfolioDataIntegrityEngine` consumes these canonical sets and performs no
+  independent ticker/account duplicate classification.
 
 The existing `duplicateHoldings` projection remains a cross-account alias;
 explicit cross-account, same-account, and all-duplicate collections are
@@ -95,21 +103,28 @@ default account. Mixed named/blank Portfolio Master rows are normalized at
 read time without rewriting the source worksheet. Existing Portfolio Snapshot,
 Portfolio Engine Summary, Portfolio Performance, Portfolio Valuation,
 Portfolio State, and Portfolio Exposure Attribution worksheet schemas are
-unchanged. Existing public result fields remain; RC2 additions are additive.
+unchanged. Existing public result fields remain; RC3 additions are additive.
 
-See the [RC2 migration guide](MIGRATION-2.1.0-RC2.md).
+Portfolio Snapshot continues returning its complete intelligence and duplicate
+detail to in-process callers. The orchestrator persists only a compact
+executive projection to the existing Step Log `Message` cell. All Step Log
+messages are deterministically capped at 12,000 characters, below the Google
+Sheets per-cell limit.
+
+See the [RC3 migration guide](MIGRATION-2.1.0-RC3.md).
 
 ## Release lineage
 
-The repository contains no Release 2.0 tag or certified baseline. RC2 records
-the actual ancestry instead of inventing one:
+The repository lineage is:
 
 1. production release `v1.3.0` (`659ad79`);
 2. Engineering Lab governance/registry lineage through `r1.3.1.1` on
    `origin/develop`; and
-3. draft candidate `v2.1.0-rc.2` on PR #8.
+3. Release 2.1.0 RC1 at commits `0de3968` through `a0147a5`;
+4. Release 2.1.0 RC2 at `3d18546`; and
+5. this draft Release 2.1.0 RC3 candidate on PR #8.
 
-`CB-002` remains the configuration baseline. No RC2 tag is created while the
+`CB-002` remains the configuration baseline. No RC3 tag is created while the
 pull request is draft.
 
 ## Validation plan and evidence boundary
@@ -117,11 +132,10 @@ pull request is draft.
 Required repository checks are `npm ci`, `npm test`, `npm run lint`,
 `npm run validate`, `npm run smoke:inventory`, `git diff --check`, Apps Script
 source/status validation, and synthetic workbook regression tests. Coverage
-includes empty portfolios, mixed native currencies, explicit currency
-mismatches, account case/whitespace/default normalization, same- and
-cross-account duplicates, security-ID precedence, exposure reconciliation,
-large households, existing worksheet shapes, and deterministic smoke entry
-points.
+includes valuation-currency ingress, exchange/ticker collisions, canonical
+duplicate ownership, custom and empty account normalization, bounded Step Log
+payloads, a 5,000-position serialization case, existing worksheet shapes, and
+deterministic smoke entry points.
 
 Local Node/Jest/static checks do not constitute Apps Script Lab execution,
 live workbook inspection, CI, certification, or release approval. The Release
@@ -136,7 +150,7 @@ Runtime work remains linear in the number of holdings plus deterministic group
 sorting. The principal remaining risk is unobserved behavior in the designated
 Apps Script Lab/workbook until human-controlled runtime validation occurs.
 
-Before merge, rollback is a reviewed revert or abandonment of the RC2 branch.
+Before merge, rollback is a reviewed revert or abandonment of the RC3 branch.
 After a future merge, use a reviewed Git revert, redeploy the last approved
 commit under the Release Policy, and rerun portfolio/platform checks. No
-worksheet restoration is expected because RC2 changes no persisted schema.
+worksheet restoration is expected because RC3 changes no persisted schema.

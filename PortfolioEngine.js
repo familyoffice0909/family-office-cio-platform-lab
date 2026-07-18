@@ -59,6 +59,10 @@ function foBuildPortfolioSnapshot() {
         isin: foGetVal_(row, headers, 'ISIN') || '',
         cusip: foGetVal_(row, headers, 'CUSIP') || '',
         sedol: foGetVal_(row, headers, 'SEDOL') || '',
+        exchange:
+          foGetVal_(row, headers, 'Exchange') ||
+          foGetVal_(row, headers, 'Primary Exchange') ||
+          '',
         company:
           foGetVal_(row, headers, 'Company') ||
           foGetVal_(row, headers, 'Company / Fund') ||
@@ -75,9 +79,15 @@ function foBuildPortfolioSnapshot() {
         theme: foGetVal_(row, headers, 'Theme') || '',
         quantity: quantity,
         currentPrice: currentPrice,
-        currentPriceCurrency: FO_CONFIG.BASE_CURRENCY,
+        currentPriceCurrency:
+          foGetVal_(row, headers, 'Current Price Currency') ||
+          foGetVal_(row, headers, 'Price Currency') ||
+          FO_CONFIG.BASE_CURRENCY,
         marketValue: marketValue,
-        marketValueCurrency: FO_CONFIG.BASE_CURRENCY,
+        valuationCurrency:
+          foGetVal_(row, headers, 'Valuation Currency') ||
+          foGetVal_(row, headers, 'Market Value Currency') ||
+          FO_CONFIG.BASE_CURRENCY,
         costBasis: costBasis,
         targetWeight: targetWeight
       });

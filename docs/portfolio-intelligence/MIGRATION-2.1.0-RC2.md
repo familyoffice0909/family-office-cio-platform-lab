@@ -2,23 +2,23 @@
 
 ## Scope
 
-RC2 remediates the PR #8 architecture-review findings without changing the
-Release 2.0 workbook architecture, source-of-truth boundary, orchestration
+RC2 remediates the first PR #8 architecture-review findings without changing the
+inherited `v1.3.0` workbook architecture, source-of-truth boundary, orchestration
 order, authorization scopes, triggers, investment policy, or execution
 authority.
 
 ## Release lineage
 
-There is no Release 2.0 tag or certified baseline in this repository. The
-traceable ancestry is:
+The traceable repository ancestry at RC2 was:
 
 1. production source release `v1.3.0` at `659ad79`;
 2. Engineering Lab governance/registry lineage through tagged baseline
    `r1.3.1.1` on `origin/develop`; and
-3. draft candidate `v2.1.0-rc.2` on PR #8, targeting `origin/develop`.
+3. Release 2.1.0 RC1 at commits `0de3968` through `a0147a5`; and
+4. draft candidate `v2.1.0-rc.2` at `3d18546` on PR #8, targeting
+   `origin/develop`.
 
-RC2 does not manufacture or backfill a Release 2.0 tag. `CB-002` remains the
-configuration baseline. Human architecture review, Lab certification, merge,
+`CB-002` remains the configuration baseline. Human architecture review, Lab certification, merge,
 tagging, deployment, and production promotion remain pending.
 
 ## Automatic compatibility migration

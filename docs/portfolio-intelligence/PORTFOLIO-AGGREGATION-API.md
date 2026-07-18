@@ -2,8 +2,8 @@
 
 - **Owner:** Portfolio Domain Owner
 - **Contract version:** `HOUSEHOLD_PORTFOLIO_AGGREGATION_V1`
-- **Introduced by:** Release 2.1.0 RC2
-- **Compatibility:** Governed additive extension; Release 2.0 worksheet and public entry-point contracts are unchanged
+- **Introduced by:** Release 2.1.0 RC1; hardened through RC2 and RC3
+- **Compatibility:** Governed additive extension; inherited `v1.3.0` worksheet schemas and public entry-point contracts are unchanged
 
 ## Canonical authority
 
@@ -60,8 +60,8 @@ legacy rows. `HouseholdPortfolio.baseCurrency` defaults to CAD for compatibility
 ## Account normalization
 
 `foCreateHouseholdPortfolioFromPositions()` is the ingestion boundary. It
-trims and collapses whitespace, matches known account types case-insensitively,
-creates a canonical account ID, and maps blanks and the legacy `Unknown`
+trims and collapses whitespace, uppercases custom account names, matches known
+account types case-insensitively, creates a canonical account ID, and maps blanks and the legacy `Unknown`
 placeholder to `Default Account` before any engine calculation. Thus `TFSA`,
 `tfsa`, and ` TFSA ` all become
 `ACCOUNT-TFSA` / `TFSA`. Consumers use canonical account IDs and names from the
@@ -75,14 +75,20 @@ Security identity precedence is:
 2. `securityId`;
 3. `isin`;
 4. `cusip`;
-5. `sedol`; and
-6. normalized uppercase ticker/symbol fallback.
+5. `sedol`;
+6. normalized exchange plus uppercase ticker/symbol; and
+7. normalized uppercase ticker/symbol fallback.
 
 Matching is exact after whitespace and case normalization. Governed identifier
 fields share an identifier namespace, while ticker fallback has a separate
 namespace. Different tickers with the same canonical security ID match;
-identical tickers with different canonical IDs do not. Output includes
-`securityIdSource` so fallback behavior remains visible.
+identical tickers with different canonical IDs do not. Exchange-qualified
+tickers match only on the same normalized exchange. A ticker-only row is not
+merged when the same aggregation contains stronger identity evidence for that
+ticker or contradictory issuer/country/currency evidence; each ambiguous row
+remains separate. This fail-closed behavior avoids combining securities whose
+identity cannot be proven unique. Output includes `securityIdSource` and
+`exchange` so fallback behavior remains visible.
 
 ## Duplicate semantics
 
@@ -96,8 +102,9 @@ identical tickers with different canonical IDs do not. Output includes
   holding count, and account membership before classification.
 
 `duplicates.crossAccount`, `duplicates.sameAccount`, and `duplicates.all` are
-the canonical sets. The compatibility field `duplicateHoldings` remains an
-alias for cross-account duplicates.
+the canonical sets. `PortfolioDataIntegrityEngine` consumes these sets and
+does not classify duplicates independently. The compatibility field
+`duplicateHoldings` remains an alias for cross-account duplicates.
 
 ## Output and reconciliation
 
@@ -115,5 +122,7 @@ Construction fails for missing account contract fields, duplicate account IDs,
 missing security identity, unsupported account types, invalid currency codes,
 non-finite or negative quantities/prices/market values, explicit currency
 mismatches, and invalid aggregation options. Validation happens before output;
-partial results are not returned. Empty portfolios are valid and return zero
-totals with empty exposure collections.
+partial results are not returned. Explicit `valuationCurrency` is preserved at
+ingress and rejected when it differs from household base currency; it is never
+overwritten or converted. Empty portfolios are valid and return zero totals,
+zero accounts, and empty exposure collections.

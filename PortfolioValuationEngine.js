@@ -39,8 +39,13 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
   const marketValueIndex = headers.indexOf('Market Value');
   const costBasisIndex = headers.indexOf('Cost Basis');
   const accountIndex = headers.indexOf('Account');
+  const valuationCurrencyIndex = headers.indexOf('Valuation Currency');
+  const marketValueCurrencyIndex = headers.indexOf('Market Value Currency');
+  const currentPriceCurrencyIndex = headers.indexOf('Current Price Currency');
+  const priceCurrencyIndex = headers.indexOf('Price Currency');
 
   const valuedHoldings = [];
+  const marketValueWrites = [];
   let missingPriceCount = 0;
 
   for (let r = 1; r < values.length; r++) {
@@ -64,18 +69,28 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
 
     const marketValue = quantity * price;
 
-    portfolioSheet.getRange(r + 1, marketValueIndex + 1).setValue(marketValue);
+    const valuationCurrency = valuationCurrencyIndex >= 0
+      ? values[r][valuationCurrencyIndex]
+      : marketValueCurrencyIndex >= 0
+        ? values[r][marketValueCurrencyIndex]
+        : FO_CONFIG.BASE_CURRENCY;
+    const currentPriceCurrency = currentPriceCurrencyIndex >= 0
+      ? values[r][currentPriceCurrencyIndex]
+      : priceCurrencyIndex >= 0
+        ? values[r][priceCurrencyIndex]
+        : FO_CONFIG.BASE_CURRENCY;
 
     valuedHoldings.push({
       ticker: ticker,
       account: account,
       quantity: quantity,
       currentPrice: price,
-      currentPriceCurrency: FO_CONFIG.BASE_CURRENCY,
+      currentPriceCurrency: currentPriceCurrency || FO_CONFIG.BASE_CURRENCY,
       marketValue: marketValue,
-      marketValueCurrency: FO_CONFIG.BASE_CURRENCY,
+      valuationCurrency: valuationCurrency || FO_CONFIG.BASE_CURRENCY,
       costBasis: costBasis
     });
+    marketValueWrites.push({ row: r + 1, value: marketValue });
   }
 
   const aggregation = foAggregateHouseholdPortfolio(
@@ -86,6 +101,10 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
   );
   const totalMarketValue = aggregation.totalMarketValue;
   const totalCostBasis = aggregation.totalCostBasis;
+
+  marketValueWrites.forEach(function(write) {
+    portfolioSheet.getRange(write.row, marketValueIndex + 1).setValue(write.value);
+  });
 
   const unrealizedGainLoss = totalMarketValue - totalCostBasis;
   const unrealizedGainLossPct =

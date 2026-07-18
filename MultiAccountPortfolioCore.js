@@ -1,5 +1,5 @@
 /**
- * Release 2.1.0 RC2 — Multi-Account Portfolio Intelligence Core.
+ * Release 2.1.0 RC3 — Multi-Account Portfolio Intelligence Core.
  *
  * This module owns the in-memory portfolio domain, account registry, unified
  * aggregation, and descriptive concentration analysis. The Family Office
@@ -278,13 +278,13 @@ function foMigrateLegacyPortfolio(input, baseCurrency) {
 
   return new HouseholdPortfolio({
     baseCurrency: currency,
-    accounts: [{
+    accounts: legacyHoldings.length ? [{
       accountId: FO_DEFAULT_ACCOUNT_ID,
       name: FO_DEFAULT_ACCOUNT_NAME,
       type: AccountType.DEFAULT,
       currency: currency,
       holdings: legacyHoldings
-    }]
+    }] : []
   });
 }
 
@@ -319,7 +319,7 @@ function foCreateHouseholdPortfolioFromPositions(positions, baseCurrency) {
       account: identity.name,
       accountId: identity.accountId,
       ingestionOrder: positionIndex,
-      marketValueCurrency: source.marketValueCurrency ||
+      marketValueCurrency: source.marketValueCurrency || source.valuationCurrency ||
         (source.marketValue === undefined && source.marketValueCAD !== undefined
           ? 'CAD'
           : currency),
@@ -328,7 +328,10 @@ function foCreateHouseholdPortfolioFromPositions(positions, baseCurrency) {
   });
 
   if (!order.length) {
-    return foMigrateLegacyPortfolio([], currency);
+    return new HouseholdPortfolio({
+      baseCurrency: currency,
+      accounts: []
+    });
   }
 
   return new HouseholdPortfolio({
@@ -341,7 +344,9 @@ function foCreateHouseholdPortfolioFromPositions(positions, baseCurrency) {
 
 function foAggregateHouseholdPortfolio(portfolio) {
   const household = foMigrateLegacyPortfolio(portfolio);
-  const entries = foFlattenHouseholdHoldings_(household);
+  const entries = foApplyCollisionSafeTickerIdentity_(
+    foFlattenHouseholdHoldings_(household)
+  );
   const totalMarketValue = entries.reduce(function(total, entry) {
     return total + entry.holding.marketValue;
   }, 0);
@@ -455,6 +460,11 @@ function foNormalizeHolding_(input, index) {
     : source.marketValue;
   let marketValue = foOptionalPortfolioNumber_(explicitMarketValue, 'marketValue');
   const costBasis = foOptionalPortfolioNumber_(source.costBasis, 'costBasis');
+  const valuationCurrency = foOptionalCurrencyCode_(
+    source.marketValueCurrency || source.valuationCurrency ||
+      (source.marketValue === undefined && source.marketValueCAD !== undefined ? 'CAD' : ''),
+    'valuationCurrency'
+  );
 
   if (quantity !== null && quantity < 0) {
     throw new Error('Holding quantity cannot be negative for ' + securityId + '.');
@@ -476,6 +486,7 @@ function foNormalizeHolding_(input, index) {
     securityIdSource: securityIdentity.source,
     securityIdentityKey: securityIdentity.key,
     ticker: ticker || securityId,
+    exchange: securityIdentity.exchange,
     name: foPortfolioText_(source.name || source.company, ''),
     quantity: quantity,
     currentPrice: currentPrice,
@@ -484,11 +495,8 @@ function foNormalizeHolding_(input, index) {
       'currentPriceCurrency'
     ),
     marketValue: marketValue,
-    marketValueCurrency: foOptionalCurrencyCode_(
-      source.marketValueCurrency || source.valuationCurrency ||
-        (source.marketValue === undefined && source.marketValueCAD !== undefined ? 'CAD' : ''),
-      'marketValueCurrency'
-    ),
+    marketValueCurrency: valuationCurrency,
+    valuationCurrency: valuationCurrency,
     costBasis: costBasis,
     sector: foPortfolioText_(source.sector, FO_UNKNOWN_PORTFOLIO_DIMENSION),
     country: foPortfolioText_(source.country, FO_UNKNOWN_PORTFOLIO_DIMENSION),
@@ -511,7 +519,11 @@ function foFlattenHouseholdHoldings_(household) {
   const entries = [];
   household.accounts.forEach(function(account) {
     account.holdings.getAll().forEach(function(holding) {
-      entries.push({ account: account, holding: holding });
+      entries.push({
+        account: account,
+        holding: holding,
+        securityIdentityKey: holding.securityIdentityKey
+      });
     });
   });
   return entries;
@@ -561,12 +573,13 @@ function foBuildSecurityExposure_(entries, totalMarketValue) {
   const securities = {};
   entries.forEach(function(entry) {
     const holding = entry.holding;
-    const key = holding.securityIdentityKey;
+    const key = entry.securityIdentityKey;
     if (!securities[key]) {
       securities[key] = {
         securityId: holding.securityId,
         securityIdSource: holding.securityIdSource,
         ticker: holding.ticker,
+        exchange: holding.exchange,
         name: holding.name,
         marketValue: 0,
         costBasis: 0,
@@ -593,6 +606,7 @@ function foBuildSecurityExposure_(entries, totalMarketValue) {
       securityId: security.securityId,
       securityIdSource: security.securityIdSource,
       ticker: security.ticker,
+      exchange: security.exchange,
       name: security.name,
       marketValue: security.marketValue,
       costBasis: security.costBasis,
@@ -621,6 +635,7 @@ function foBuildAggregatedPortfolioPositions_(entries, totalMarketValue, baseCur
       securityId: holding.securityId,
       securityIdSource: holding.securityIdSource,
       ticker: holding.ticker,
+      exchange: holding.exchange,
       name: holding.name,
       company: holding.name,
       quantity: holding.quantity,
@@ -628,6 +643,7 @@ function foBuildAggregatedPortfolioPositions_(entries, totalMarketValue, baseCur
       currentPriceCurrency: holding.currentPriceCurrency,
       marketValue: holding.marketValue,
       marketValueCurrency: baseCurrency,
+      valuationCurrency: holding.valuationCurrency,
       costBasis: holding.costBasis,
       weight: totalMarketValue > 0 ? holding.marketValue / totalMarketValue : 0,
       sector: holding.sector,
@@ -743,7 +759,7 @@ function foNormalizeAccountName_(value) {
   ) {
     return AccountType[upper];
   }
-  return normalized;
+  return upper;
 }
 
 function foNormalizeAccountId_(value) {
@@ -776,13 +792,16 @@ function foAccountIdFromName_(accountName) {
 }
 
 function foResolveSecurityIdentity_(source, ticker) {
+  const exchange = foPortfolioText_(
+    source.exchange || source.primaryExchange || source.listingExchange,
+    ''
+  ).toUpperCase().replace(/\s+/g, ' ');
   const candidates = [
     ['SECURITY_ID', source.canonicalSecurityId],
     ['SECURITY_ID', source.securityId],
     ['ISIN', source.isin],
     ['CUSIP', source.cusip],
-    ['SEDOL', source.sedol],
-    ['TICKER', ticker]
+    ['SEDOL', source.sedol]
   ];
 
   for (let index = 0; index < candidates.length; index++) {
@@ -791,14 +810,83 @@ function foResolveSecurityIdentity_(source, ticker) {
       return Object.freeze({
         securityId: value,
         source: candidates[index][0],
-        key: candidates[index][0] === 'TICKER'
-          ? 'TICKER:' + value
-          : 'IDENTIFIER:' + value
+        key: 'IDENTIFIER:' + value,
+        exchange: exchange
       });
     }
   }
 
-  return Object.freeze({ securityId: '', source: '', key: '' });
+  if (ticker && exchange) {
+    return Object.freeze({
+      securityId: ticker,
+      source: 'EXCHANGE_TICKER',
+      key: 'EXCHANGE_TICKER:' + exchange + ':' + ticker,
+      exchange: exchange
+    });
+  }
+
+  if (ticker) {
+    return Object.freeze({
+      securityId: ticker,
+      source: 'TICKER',
+      key: 'TICKER:' + ticker,
+      exchange: ''
+    });
+  }
+
+  return Object.freeze({ securityId: '', source: '', key: '', exchange: exchange });
+}
+
+function foApplyCollisionSafeTickerIdentity_(entries) {
+  const tickerEvidence = {};
+
+  entries.forEach(function(entry) {
+    const holding = entry.holding;
+    const ticker = holding.ticker;
+    if (!ticker) return;
+    if (!tickerEvidence[ticker]) {
+      tickerEvidence[ticker] = {
+        strongerIdentities: {},
+        tickerDescriptions: {}
+      };
+    }
+    if (holding.securityIdSource !== 'TICKER') {
+      tickerEvidence[ticker].strongerIdentities[holding.securityIdentityKey] = true;
+      return;
+    }
+
+    const description = [
+      foCollisionEvidenceText_(holding.name),
+      foCollisionEvidenceText_(holding.country),
+      foCollisionEvidenceText_(holding.currency)
+    ].join('|');
+    if (description !== '||') {
+      tickerEvidence[ticker].tickerDescriptions[description] = true;
+    }
+  });
+
+  return entries.map(function(entry, index) {
+    const holding = entry.holding;
+    if (holding.securityIdSource !== 'TICKER') return entry;
+
+    const evidence = tickerEvidence[holding.ticker];
+    const ambiguous = Object.keys(evidence.strongerIdentities).length > 0 ||
+      Object.keys(evidence.tickerDescriptions).length > 1;
+    if (!ambiguous) return entry;
+
+    return {
+      account: entry.account,
+      holding: holding,
+      securityIdentityKey: 'UNRESOLVED_TICKER:' + holding.ticker + ':' + index
+    };
+  });
+}
+
+function foCollisionEvidenceText_(value) {
+  const normalized = foPortfolioText_(value, '').toUpperCase();
+  return normalized === FO_UNKNOWN_PORTFOLIO_DIMENSION.toUpperCase()
+    ? ''
+    : normalized;
 }
 
 function foReadPortfolioPrice_(priceMap, holding) {

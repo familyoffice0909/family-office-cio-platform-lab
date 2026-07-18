@@ -24,7 +24,25 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Decision explainability
 - Recommendation change detection
 
-## [2.1.0-rc.2] - Unreleased (Draft PR #8)
+## [2.1.0-rc.3] - Unreleased (Draft PR #8)
+
+### Fixed
+
+- Removed independent ticker/account duplicate classification from Portfolio Data Integrity; same-account and cross-account findings now consume the canonical Household Aggregation Engine sets
+- Preserved explicit valuation currency at ingress and rejected non-base-currency market values without conversion or overwrite
+- Added exchange-qualified ticker identity and fail-closed handling for ambiguous ticker-only collisions
+- Replaced full Portfolio Snapshot serialization in Step Log with a compact executive projection and deterministic 12,000-character bound
+- Canonicalized custom account names across case/whitespace variants and removed the phantom default account from empty portfolios
+
+### Validation
+
+- Added independent RC3 regressions for currency ingress, ticker collisions, canonical duplicate ownership, account normalization, empty portfolios, Step Log bounds, 5,000-position serialization, and workbook schema compatibility
+
+### Lineage
+
+- Recorded actual repository ancestry as `v1.3.0` → `r1.3.1.1` → Release 2.1.0 RC1 → Release 2.1.0 RC2 → Release 2.1.0 RC3
+
+## [2.1.0-rc.2] - 2026-07-18 (Draft PR #8)
 
 ### Added
 
@@ -40,7 +58,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Accounts are normalized once at ingestion; blank, case, and whitespace variants resolve consistently
 - Market value is explicitly governed as household-base-currency value and inconsistent explicit currency inputs fail closed
 - Direct `InvestmentAccount` construction now requires ID, name, type, currency, and holdings; compatibility defaults remain isolated in the legacy adapter
-- Release metadata now identifies `v2.1.0-rc.2`; actual ancestry is `v1.3.0` → `r1.3.1.1` → this draft candidate because no Release 2.0 tag/baseline exists in the repository
+- Release metadata identifies `v2.1.0-rc.2`; ancestry is `v1.3.0` → `r1.3.1.1` → Release 2.1.0 RC1 → Release 2.1.0 RC2
 
 ### Validation
 
