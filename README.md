@@ -6,11 +6,12 @@
 
 Institutional-grade Family Office CIO Platform built on Google Sheets and Google Apps Script, with GitHub-based source control, validation, reporting, portfolio analytics, broker reconciliation, and autonomous CIO orchestration.
 
-## Current production baseline
+## Current repository baseline
 
-- Release: `v1.0.0`
-- Default branch: `main`
-- Development model: feature branch → CI → pull request → merge → Apps Script deployment
+- Release: `v1.3.0`
+- Lab repository: `family-office-cio-platform-lab` (`origin`)
+- Production repository: `family-office-cio-platform` (`production`)
+- Development model: feature wave → `develop` → Lab validation → Lab-certified `main` → production promotion → controlled Apps Script deployment
 - Runtime: Google Apps Script V8
 - Base currency: CAD
 
@@ -29,7 +30,7 @@ Institutional-grade Family Office CIO Platform built on Google Sheets and Google
 ## Repository workflow
 
 ```text
-ChatGPT / Developer
+Developer / AI collaborator
         ↓
 Feature branch
         ↓
@@ -37,16 +38,20 @@ GitHub Actions CI
         ↓
 Tests and validation
         ↓
-Pull request review
+Pull request to develop
         ↓
-Merge to main
+Integrated Lab validation
         ↓
-Controlled Apps Script deployment
+Release pull request to Lab main
+        ↓
+Exact-commit promotion to production main
+        ↓
+Controlled production Apps Script deployment
         ↓
 Google Sheets platform
 ```
 
-Never develop directly on `main`. Use one feature branch per engineering wave.
+Never develop directly on `develop` or `main`. Use one short-lived branch per engineering wave and follow the [Branching Strategy](docs/engineering/BRANCHING_STRATEGY.md).
 
 ## Local setup
 
@@ -68,6 +73,13 @@ Never commit `.clasprc.json`, OAuth tokens, service-account keys, broker credent
 
 ## Documentation
 
+- [Engineering Guide](docs/engineering/ENGINEERING_GUIDE.md)
+- [Architecture Principles](docs/engineering/ARCHITECTURE_PRINCIPLES.md)
+- [Development Workflow](docs/engineering/DEVELOPMENT_WORKFLOW.md)
+- [CIO Philosophy](docs/engineering/CIO_PHILOSOPHY.md)
+- [Branching Strategy](docs/engineering/BRANCHING_STRATEGY.md)
+- [Release Policy](docs/engineering/RELEASE_POLICY.md)
+- [AI Collaboration Model](docs/engineering/AI_COLLABORATION_MODEL.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
@@ -77,11 +89,7 @@ Never commit `.clasprc.json`, OAuth tokens, service-account keys, broker credent
 
 ## Release policy
 
-The project follows Semantic Versioning:
-
-- Patch: backward-compatible fixes
-- Minor: new backward-compatible capabilities
-- Major: breaking architecture or operating-model changes
+The project follows Semantic Versioning and evidence-backed promotion from the Engineering Lab to the separate production authority. See the [Release Policy](docs/engineering/RELEASE_POLICY.md) and [Release Checklist](docs/RELEASE_CHECKLIST.md).
 
 ## Known limitation
 

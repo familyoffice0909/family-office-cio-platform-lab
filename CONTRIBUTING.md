@@ -1,30 +1,27 @@
 # Contributing
 
+Start with the [Engineering Guide](docs/engineering/ENGINEERING_GUIDE.md). The canonical workflow, Definition of Done, Pull Request checklist, architecture controls, branching, release process, and AI collaboration rules live under [`docs/engineering/`](docs/engineering/).
+
+## Contributor flow
+
+1. Read the relevant ADRs, wave documents, schemas, tests, and current implementation.
+2. Define one scoped wave with acceptance criteria, affected outputs, evidence, and rollback.
+3. Create the appropriate short-lived branch from `origin/develop`.
+4. Implement the smallest complete change, including tests and owning documentation.
+5. Run the checks required by the [Development Workflow](docs/engineering/DEVELOPMENT_WORKFLOW.md).
+6. Open a pull request to `develop`, complete the canonical Pull Request checklist, and obtain required approvals.
+7. Validate runtime and workbook behavior in the designated Lab when applicable.
+8. Treat production promotion as a separate, explicitly approved release process.
+
 ## Branching
 
-Create one feature branch per engineering wave:
+Use one branch per coherent change. Feature waves retain the established naming convention:
 
 ```text
 feature/wave-x-y-z-short-description
 ```
 
-Do not commit directly to `main`.
-
-## Required delivery flow
-
-1. Update local `main`
-2. Create a feature branch
-3. Implement one scoped change
-4. Run `npm run validate`
-5. Run `npm run lint`
-6. Run the relevant Apps Script smoke test
-7. Push the branch
-8. Open a draft pull request
-9. Confirm CI passes
-10. Review sheet outputs and execution logs
-11. Merge to `main`
-12. Delete the feature branch
-13. Tag and release when appropriate
+Do not commit directly to `develop`, Lab `main`, or production `main`. See [Branching Strategy](docs/engineering/BRANCHING_STRATEGY.md) for feature, fix, documentation, release, hotfix, and rollback branches.
 
 ## Code standards
 
@@ -35,6 +32,8 @@ Do not commit directly to `main`.
 - Avoid hidden credentials and environment-specific identifiers
 - Preserve idempotency where a function may run repeatedly
 - Add a smoke test for material new modules
+- Preserve source-of-truth and workbook ownership boundaries
+- Treat missing, stale, or invalid data explicitly; never manufacture certainty
 
 ## Security
 
@@ -47,13 +46,6 @@ Never commit:
 - broker credentials
 - personal financial exports
 
-## Pull requests
+## Pull requests and releases
 
-Every pull request should state:
-
-- Scope
-- Files changed
-- Tests run
-- Sheet outputs affected
-- Rollback approach
-- Known limitations
+Use the [Pull Request checklist](docs/engineering/DEVELOPMENT_WORKFLOW.md#pull-request-checklist) for every change. Production candidates also follow the [Release Policy](docs/engineering/RELEASE_POLICY.md) and canonical [Release Checklist](docs/RELEASE_CHECKLIST.md).
