@@ -4,6 +4,16 @@
  ************************************************************/
 
 function foRunAutonomousCioOrchestrator() {
+  return foWithRuntimeLock_(
+    'Run Autonomous CIO Orchestrator',
+    function() {
+      return foRunAutonomousCioOrchestratorProtected_();
+    }
+  );
+}
+
+function foRunAutonomousCioOrchestratorProtected_() {
+  foAssertRuntimeLockHeld_('Run Autonomous CIO Orchestrator');
   const module = 'AutonomousCioOrchestrator';
   const runId = foNowId_('CIO-RUN');
   const startedAt = new Date();

@@ -14,6 +14,9 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Repository governance and release checklist
 - Automated module, menu, orchestrator, version, manifest, duplicate-function, and secret validation
 - CI-generated smoke-test inventory artifact
+- Fail-closed LAB/PRODUCTION runtime configuration and governed Dashboard/Ledger workbook access for wave R1.3.0.2
+- Runtime locking for the Autonomous CIO Orchestrator, Production Certification, and report-archive workflows; other mutating paths are outside the approved reduced scope
+- Explicit Apps Script OAuth scopes and Jest coverage for runtime guard and lock behavior
 
 ### Planned
 - Buy Zone Intelligence hardening

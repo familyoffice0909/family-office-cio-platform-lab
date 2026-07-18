@@ -37,6 +37,22 @@ Family Office CIO Platform
 - Backup
 - Scheduling and triggers
 
+#### Runtime safety (reduced scope)
+
+Governed Dashboard and Ledger access flows through `foDashboard_()` and
+`foLedger_()` in `SpreadsheetService.js`. The two direct
+`SpreadsheetApp.openById()` calls intentionally remain only at that adapter
+boundary because the Apps Script API must perform the physical workbook open.
+`RuntimeSafety.js` validates the environment-bound Script Property ID before
+the open and verifies the returned workbook identity afterward. No direct
+`SpreadsheetApp.openByUrl()` access remains.
+
+The runtime lock serializes only the explicitly protected Autonomous CIO
+Orchestrator, Production Certification, and report-archive workflows, including
+their nested protected service calls. Other mutating execution paths are not
+represented as lock-protected, so this reduced scope is not a script-wide
+locking guarantee.
+
 ### 2. Portfolio intelligence
 
 - Portfolio state
