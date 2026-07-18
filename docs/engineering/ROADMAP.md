@@ -35,6 +35,7 @@ This roadmap organizes platform delivery into five institutional epics. Status i
 - A2.3.0 — Architecture Foundation
 - R1.3.0.1 — Repository Integrity
 - R1.3.0.2 — Runtime Safety
+- R1.3.0.4 — Engineering Governance ([release closure evidence](../validation/R1.3.0.4-RELEASE-CLOSURE-EVIDENCE.md))
 
 **In progress:**
 
@@ -45,12 +46,6 @@ This roadmap organizes platform delivery into five institutional epics. Status i
   - CI complete
   - Apps Script Lab validation pending
   - Merge pending
-- R1.3.0.4 — Engineering Governance
-  - Draft PR
-  - Architecture Review
-  - Release Validation
-  - Merge
-  - Tagging
 
 **Future:**
 
