@@ -24,13 +24,13 @@ function foRunPortfolioDataIntegrity() {
 
     const headers = values[0].map(String);
     const issues = [];
-    const seen = {};
+    const positions = [];
 
     for (let r = 1; r < values.length; r++) {
       const row = values[r];
 
       const ticker = String(foGetVal_(row, headers, 'Ticker') || '').trim().toUpperCase();
-      const account = String(foGetVal_(row, headers, 'Account') || '').trim();
+      const rawAccount = String(foGetVal_(row, headers, 'Account') || '').trim();
       const quantity = foIntegrityNumber_(foGetVal_(row, headers, 'Quantity'));
       const price = foIntegrityNumber_(foGetVal_(row, headers, 'Current Price'));
       const marketValue = foIntegrityNumber_(foGetVal_(row, headers, 'Market Value'));
@@ -40,26 +40,50 @@ function foRunPortfolioDataIntegrity() {
 
       if (!ticker) continue;
 
-      if (foIsReferencePortfolioRow_(account, quantity, marketValue, price)) {
+      if (foIsReferencePortfolioRow_(rawAccount, quantity, marketValue, price)) {
         continue;
       }
 
+      const account = foNormalizeAccountIdentity_(rawAccount).name;
       const rowNumber = r + 1;
-      const duplicateKey = ticker + '|' + account;
 
-      if (seen[duplicateKey]) {
-        foAddPortfolioIntegrityIssue_(issues, rowNumber, ticker, account, 'Duplicate Position', 'MEDIUM',
-          'Same ticker/account combination appears more than once.',
-          'Consolidate duplicate rows or confirm they represent separate lots.');
-      } else {
-        seen[duplicateKey] = true;
-      }
-
-      if (!account) {
-        foAddPortfolioIntegrityIssue_(issues, rowNumber, ticker, account, 'Missing Account', 'HIGH',
-          'Account is blank for an active holding.',
-          'Enter account such as TFSA, LIRA, RRSP, Cash, or Interactive Brokers.');
-      }
+      positions.push({
+        rowNumber: rowNumber,
+        ticker: ticker,
+        canonicalSecurityId: foGetVal_(row, headers, 'Canonical Security ID') || '',
+        securityId: foGetVal_(row, headers, 'Security ID') || '',
+        isin: foGetVal_(row, headers, 'ISIN') || '',
+        cusip: foGetVal_(row, headers, 'CUSIP') || '',
+        sedol: foGetVal_(row, headers, 'SEDOL') || '',
+        exchange:
+          foGetVal_(row, headers, 'Exchange') ||
+          foGetVal_(row, headers, 'Primary Exchange') ||
+          '',
+        company:
+          foGetVal_(row, headers, 'Company') ||
+          foGetVal_(row, headers, 'Company / Fund') ||
+          '',
+        account: account,
+        quantity: quantity,
+        currentPrice: price,
+        currentPriceCurrency:
+          foGetVal_(row, headers, 'Current Price Currency') ||
+          foGetVal_(row, headers, 'Price Currency') ||
+          FO_CONFIG.BASE_CURRENCY,
+        marketValue: marketValue,
+        marketValueCurrency:
+          foGetVal_(row, headers, 'Market Value Currency') ||
+          foGetVal_(row, headers, 'Valuation Currency') ||
+          FO_CONFIG.BASE_CURRENCY,
+        costBasis: costBasis,
+        assetClass: assetClass,
+        sector: sector,
+        country: foGetVal_(row, headers, 'Country') || '',
+        currency:
+          foGetVal_(row, headers, 'Currency') ||
+          foGetVal_(row, headers, 'Native Currency') ||
+          FO_CONFIG.BASE_CURRENCY
+      });
 
       if (quantity <= 0) {
         foAddPortfolioIntegrityIssue_(issues, rowNumber, ticker, account, 'Missing or Invalid Quantity', 'HIGH',
@@ -114,6 +138,14 @@ function foRunPortfolioDataIntegrity() {
       }
     }
 
+    const aggregation = foAggregateHouseholdPortfolio(
+      foCreateHouseholdPortfolioFromPositions(
+        positions,
+        FO_CONFIG.BASE_CURRENCY
+      )
+    );
+    foAppendCanonicalDuplicateIssues_(issues, aggregation);
+
     foWritePortfolioIntegrityReport_(dashboard, issues);
 
     foInfo_(module, 'Complete', 'Portfolio data integrity completed. Issues found: ' + issues.length);
@@ -127,6 +159,61 @@ function foRunPortfolioDataIntegrity() {
     foError_(module, 'Failure', error);
     throw error;
   }
+}
+
+function foAppendCanonicalDuplicateIssues_(issues, aggregation) {
+  aggregation.duplicates.sameAccount.forEach(function(exposure) {
+    exposure.sameAccountIds.forEach(function(accountId) {
+      const matchingPositions = foCanonicalDuplicatePositions_(
+        aggregation.positions,
+        exposure,
+        accountId
+      );
+      matchingPositions.slice(1).forEach(function(position) {
+        foAddPortfolioIntegrityIssue_(
+          issues,
+          position.rowNumber,
+          position.ticker,
+          position.accountName,
+          'Duplicate Position',
+          'MEDIUM',
+          'Canonical security identity appears more than once in the same account.',
+          'Consolidate duplicate rows or confirm they represent separate lots.'
+        );
+      });
+    });
+  });
+
+  aggregation.duplicates.crossAccount.forEach(function(exposure) {
+    const matchingPositions = foCanonicalDuplicatePositions_(
+      aggregation.positions,
+      exposure
+    );
+    const firstPosition = matchingPositions[0];
+    if (!firstPosition) return;
+    foAddPortfolioIntegrityIssue_(
+      issues,
+      firstPosition.rowNumber,
+      firstPosition.ticker,
+      exposure.accountNames.join(', '),
+      'Cross-Account Duplicate Exposure',
+      'MEDIUM',
+      'Canonical security identity is held across ' + exposure.accountCount + ' accounts.',
+      'Review the combined household exposure; do not consolidate without confirming account intent.'
+    );
+  });
+}
+
+function foCanonicalDuplicatePositions_(positions, exposure, accountId) {
+  return positions.filter(function(position) {
+    return position.securityId === exposure.securityId &&
+      position.securityIdSource === exposure.securityIdSource &&
+      (exposure.securityIdSource !== 'EXCHANGE_TICKER' ||
+        position.exchange === exposure.exchange) &&
+      (!accountId || position.accountId === accountId);
+  }).sort(function(left, right) {
+    return Number(left.rowNumber || 0) - Number(right.rowNumber || 0);
+  });
 }
 
 function foAddPortfolioIntegrityIssue_(issues, rowNumber, ticker, account, issueType, severity, details, suggestedFix) {

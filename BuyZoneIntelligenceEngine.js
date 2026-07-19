@@ -196,7 +196,7 @@ function foSeedBuyZoneTargets_(sheet, values, headers, rules) {
 
   for (let row = 1; row < existingValues.length; row++) {
     const ticker = String(existingValues[row][0] || '').trim().toUpperCase();
-    const account = String(existingValues[row][1] || '').trim();
+    const account = foNormalizeAccountIdentity_(existingValues[row][1]).name;
 
     if (ticker) {
       existing[foBuyZoneTargetKey_(ticker, account)] = true;
@@ -210,9 +210,9 @@ function foSeedBuyZoneTargets_(sheet, values, headers, rules) {
     const ticker = String(
       foGetVal_(values[row], headers, 'Ticker') || ''
     ).trim().toUpperCase();
-    const account = String(
-      foGetVal_(values[row], headers, 'Account') || ''
-    ).trim();
+    const account = foNormalizeAccountIdentity_(
+      foGetVal_(values[row], headers, 'Account')
+    ).name;
 
     if (!ticker) continue;
 
@@ -365,9 +365,9 @@ function foBuildBuyZoneResults_(
 
     if (!ticker) continue;
 
-    const account = String(
-      foGetVal_(row, headers, 'Account') || ''
-    ).trim();
+    const account = foNormalizeAccountIdentity_(
+      foGetVal_(row, headers, 'Account')
+    ).name;
 
     const company =
       foGetVal_(row, headers, 'Company') ||

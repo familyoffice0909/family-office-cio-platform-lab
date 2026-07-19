@@ -1,10 +1,12 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v1.3.0',
-  RELEASE_NAME: 'Unified Weekly CIO Reporting',
+  PLATFORM_VERSION: 'v2.1.0-rc.3',
+  RELEASE_NAME: 'Multi-Account Portfolio Intelligence Core RC3',
+  RELEASE_STATUS: 'RELEASE_CANDIDATE',
+  RELEASE_LINEAGE: 'v1.3.0 -> r1.3.1.1 -> v2.1.0-rc.1 -> v2.1.0-rc.2 -> v2.1.0-rc.3',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.07.16.1300',
+  BUILD: '2026.07.18.RC3',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },

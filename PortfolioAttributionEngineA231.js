@@ -27,10 +27,21 @@ function foRunPortfolioAttributionA231() {
     throw new Error('A2.3.1 found no eligible performance positions.');
   }
 
-  const totals = foA231Totals_(positions);
+  const aggregation = foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(positions.map(function(position) {
+      return Object.assign({}, position, {
+        marketValueCurrency: FO_CONFIG.BASE_CURRENCY
+      });
+    }), FO_CONFIG.BASE_CURRENCY)
+  );
+  const totals = foA231Totals_(positions, aggregation);
   const positionRows = foA231PositionRows_(positions, totals, run);
-  const accountRows = foA231GroupRows_(positions, 'account', totals, run);
-  const sectorRows = foA231GroupRows_(positions, 'sector', totals, run);
+  const accountRows = foA231GroupRows_(
+    positions, 'account', totals, run, aggregation
+  );
+  const sectorRows = foA231GroupRows_(
+    positions, 'sector', totals, run, aggregation
+  );
   const executiveRows = foA231ExecutiveRows_(
     positions,
     positionRows,
@@ -104,8 +115,9 @@ function foA231ReadPositions_(values, headers) {
     positions.push({
       ticker: ticker,
       company: foA231Text_(foGetVal_(row, headers, 'Company')),
-      account:
-        foA231Text_(foGetVal_(row, headers, 'Account')) || 'Unknown',
+      account: foNormalizeAccountIdentity_(
+        foGetVal_(row, headers, 'Account')
+      ).name,
       sector:
         foA231Text_(foGetVal_(row, headers, 'Sector')) || 'Unknown',
       assetClass:
@@ -120,15 +132,13 @@ function foA231ReadPositions_(values, headers) {
   return positions;
 }
 
-function foA231Totals_(positions) {
+function foA231Totals_(positions, aggregation) {
   const totals = positions.reduce(function(result, position) {
-    result.marketValue += position.marketValue;
-    result.costBasis += position.costBasis;
     result.gainLoss += position.gainLoss;
     return result;
   }, {
-    marketValue: 0,
-    costBasis: 0,
+    marketValue: aggregation.totalMarketValue,
+    costBasis: aggregation.totalCostBasis,
     gainLoss: 0
   });
 
@@ -172,25 +182,25 @@ function foA231PositionRows_(positions, totals, run) {
   });
 }
 
-function foA231GroupRows_(positions, field, totals, run) {
+function foA231GroupRows_(positions, field, totals, run, aggregation) {
   const groups = {};
+  const allocation = field === 'account'
+    ? aggregation.allocations.account
+    : aggregation.allocations.sector;
+
+  allocation.forEach(function(exposure) {
+    groups[exposure.name] = {
+      name: exposure.name,
+      marketValue: exposure.marketValue,
+      costBasis: exposure.costBasis,
+      gainLoss: 0,
+      positionCount: 0,
+      tickers: []
+    };
+  });
 
   positions.forEach(function(position) {
     const key = position[field] || 'Unknown';
-
-    if (!groups[key]) {
-      groups[key] = {
-        name: key,
-        marketValue: 0,
-        costBasis: 0,
-        gainLoss: 0,
-        positionCount: 0,
-        tickers: []
-      };
-    }
-
-    groups[key].marketValue += position.marketValue;
-    groups[key].costBasis += position.costBasis;
     groups[key].gainLoss += position.gainLoss;
     groups[key].positionCount++;
     groups[key].tickers.push(position.ticker);

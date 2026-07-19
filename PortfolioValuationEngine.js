@@ -39,24 +39,28 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
   const marketValueIndex = headers.indexOf('Market Value');
   const costBasisIndex = headers.indexOf('Cost Basis');
   const accountIndex = headers.indexOf('Account');
+  const valuationCurrencyIndex = headers.indexOf('Valuation Currency');
+  const marketValueCurrencyIndex = headers.indexOf('Market Value Currency');
+  const currentPriceCurrencyIndex = headers.indexOf('Current Price Currency');
+  const priceCurrencyIndex = headers.indexOf('Price Currency');
 
-  let totalMarketValue = 0;
-  let totalCostBasis = 0;
-  let valuedPositions = 0;
+  const valuedHoldings = [];
+  const marketValueWrites = [];
   let missingPriceCount = 0;
 
   for (let r = 1; r < values.length; r++) {
     const ticker = String(values[r][tickerIndex] || '').trim().toUpperCase();
     if (!ticker) continue;
 
-    const account =
-      accountIndex >= 0 ? String(values[r][accountIndex] || '').trim().toUpperCase() : '';
+    const account = accountIndex >= 0 ? values[r][accountIndex] : '';
 
     const quantity = foSafeNumber_(values[r][quantityIndex]);
     const price = foSafeNumber_(values[r][priceIndex]);
     const costBasis = costBasisIndex >= 0 ? foSafeNumber_(values[r][costBasisIndex]) : 0;
 
-    if (foIsExcludedValuationRow_(account, ticker, quantity, price)) continue;
+    if (foIsExcludedValuationRow_(
+      String(account || '').trim().toUpperCase(), ticker, quantity, price
+    )) continue;
 
     if (quantity <= 0 || price <= 0) {
       missingPriceCount++;
@@ -65,12 +69,42 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
 
     const marketValue = quantity * price;
 
-    portfolioSheet.getRange(r + 1, marketValueIndex + 1).setValue(marketValue);
+    const valuationCurrency = valuationCurrencyIndex >= 0
+      ? values[r][valuationCurrencyIndex]
+      : marketValueCurrencyIndex >= 0
+        ? values[r][marketValueCurrencyIndex]
+        : FO_CONFIG.BASE_CURRENCY;
+    const currentPriceCurrency = currentPriceCurrencyIndex >= 0
+      ? values[r][currentPriceCurrencyIndex]
+      : priceCurrencyIndex >= 0
+        ? values[r][priceCurrencyIndex]
+        : FO_CONFIG.BASE_CURRENCY;
 
-    totalMarketValue += foSafeNumber_(marketValue);
-    totalCostBasis += foSafeNumber_(costBasis);
-    valuedPositions++;
+    valuedHoldings.push({
+      ticker: ticker,
+      account: account,
+      quantity: quantity,
+      currentPrice: price,
+      currentPriceCurrency: currentPriceCurrency || FO_CONFIG.BASE_CURRENCY,
+      marketValue: marketValue,
+      valuationCurrency: valuationCurrency || FO_CONFIG.BASE_CURRENCY,
+      costBasis: costBasis
+    });
+    marketValueWrites.push({ row: r + 1, value: marketValue });
   }
+
+  const aggregation = foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(
+      valuedHoldings,
+      FO_CONFIG.BASE_CURRENCY
+    )
+  );
+  const totalMarketValue = aggregation.totalMarketValue;
+  const totalCostBasis = aggregation.totalCostBasis;
+
+  marketValueWrites.forEach(function(write) {
+    portfolioSheet.getRange(write.row, marketValueIndex + 1).setValue(write.value);
+  });
 
   const unrealizedGainLoss = totalMarketValue - totalCostBasis;
   const unrealizedGainLossPct =
@@ -82,7 +116,7 @@ function foCalculatePortfolioValuation_(portfolioSheet, values, headers) {
     totalCostBasis: totalCostBasis,
     unrealizedGainLoss: unrealizedGainLoss,
     unrealizedGainLossPct: unrealizedGainLossPct,
-    valuedPositions: valuedPositions,
+    valuedPositions: aggregation.holdingCount,
     missingPriceCount: missingPriceCount
   };
 }

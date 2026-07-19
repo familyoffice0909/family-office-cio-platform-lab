@@ -66,6 +66,8 @@ locking guarantee.
 
 ### 2. Portfolio intelligence
 
+- Multi-account portfolio domain and in-memory account registry
+- Household portfolio aggregation and duplicate-exposure analysis
 - Portfolio state
 - Market data
 - Symbol registry
@@ -74,6 +76,21 @@ locking guarantee.
 - Performance
 - Exposure and attribution
 - Broker reconciliation
+
+Release 2.1.0 RC3 extends the existing `PortfolioEngine` with a deterministic,
+in-memory multi-account domain. The Family Office Portfolio Dashboard remains
+the authoritative operational holdings source; the account registry exists
+only for the current Apps Script execution and is not the platform Registry
+Authority. `foAggregateHouseholdPortfolio()` is the canonical aggregation
+authority consumed by portfolio intelligence, duplicate analysis, summaries,
+performance, valuation, state, and exposure attribution. Market values use the
+household base currency, account identity is normalized at ingestion, and
+security identity prefers governed identifiers, then exchange-qualified
+ticker, over collision-safe ticker-only fallback. Existing
+Portfolio Master rows without an account are interpreted as `Default Account`,
+and existing worksheet schemas and orchestration order are preserved. See the
+[Release 2.1.0 RC3 record](portfolio-intelligence/RELEASE-2.1.0-MULTI-ACCOUNT-CORE.md)
+and [aggregation API contract](portfolio-intelligence/PORTFOLIO-AGGREGATION-API.md).
 
 ### 3. CIO intelligence
 

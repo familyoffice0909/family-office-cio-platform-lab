@@ -23,20 +23,28 @@ function foRunPortfolioPerformance() {
     }
 
     const headers = values[0].map(String);
-    const positions = foBuildPerformancePositions_(values, headers);
-
-    const totalMarketValue = positions.reduce(function(sum, p) {
-      return sum + p.marketValue;
-    }, 0);
-
-    const totalCostBasis = positions.reduce(function(sum, p) {
-      return sum + p.costBasis;
-    }, 0);
+    const inputPositions = foBuildPerformancePositions_(values, headers);
+    const householdPortfolio = foCreateHouseholdPortfolioFromPositions(
+      inputPositions,
+      FO_CONFIG.BASE_CURRENCY
+    );
+    const aggregation = foAggregateHouseholdPortfolio(householdPortfolio);
+    const positions = aggregation.positions.map(function(position) {
+      return Object.assign({}, position, {
+        account: position.accountName,
+        quantity: position.quantity === null ? 0 : position.quantity,
+        currentPrice: position.currentPrice === null ? 0 : position.currentPrice,
+        costBasis: position.costBasis === null ? 0 : position.costBasis,
+        portfolioWeight: position.weight
+      });
+    });
+    const totalMarketValue = aggregation.totalMarketValue;
+    const totalCostBasis = aggregation.totalCostBasis;
 
     positions.forEach(function(p) {
       p.unrealizedGainLoss = p.marketValue - p.costBasis;
       p.unrealizedReturnPct = p.costBasis > 0 ? p.unrealizedGainLoss / p.costBasis : 0;
-      p.portfolioWeight = totalMarketValue > 0 ? p.marketValue / totalMarketValue : 0;
+      p.portfolioWeight = p.weight;
       p.averageCost = p.quantity > 0 ? p.costBasis / p.quantity : 0;
     });
 
@@ -98,14 +106,35 @@ function foBuildPerformancePositions_(values, headers) {
     positions.push({
       rowNumber: r + 1,
       ticker: ticker,
+      canonicalSecurityId: foGetVal_(row, headers, 'Canonical Security ID') || '',
+      securityId: foGetVal_(row, headers, 'Security ID') || '',
+      isin: foGetVal_(row, headers, 'ISIN') || '',
+      cusip: foGetVal_(row, headers, 'CUSIP') || '',
+      sedol: foGetVal_(row, headers, 'SEDOL') || '',
+      exchange:
+        foGetVal_(row, headers, 'Exchange') ||
+        foGetVal_(row, headers, 'Primary Exchange') ||
+        '',
       company: company,
       account: account,
       quantity: quantity,
       currentPrice: price,
+      currentPriceCurrency:
+        foGetVal_(row, headers, 'Current Price Currency') ||
+        foGetVal_(row, headers, 'Price Currency') ||
+        FO_CONFIG.BASE_CURRENCY,
       marketValue: marketValue,
+      valuationCurrency:
+        foGetVal_(row, headers, 'Valuation Currency') ||
+        foGetVal_(row, headers, 'Market Value Currency') ||
+        FO_CONFIG.BASE_CURRENCY,
       costBasis: costBasis,
       assetClass: assetClass,
       sector: sector,
+      country: String(foGetVal_(row, headers, 'Country') || '').trim(),
+      currency:
+        String(foGetVal_(row, headers, 'Currency') || '').trim().toUpperCase() ||
+        FO_CONFIG.BASE_CURRENCY,
       averageCost: 0,
       unrealizedGainLoss: 0,
       unrealizedReturnPct: 0,

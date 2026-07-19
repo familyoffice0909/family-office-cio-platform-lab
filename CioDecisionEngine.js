@@ -34,7 +34,9 @@ function foRunCioDecisionEngine() {
       const record = {
         ticker: ticker,
         company: foGetVal_(row, headers, 'Company'),
-        account: foGetVal_(row, headers, 'Account'),
+        account: foNormalizeAccountIdentity_(
+          foGetVal_(row, headers, 'Account')
+        ).name,
         marketValue: foNum_(foGetVal_(row, headers, 'Market Value')),
         buyZoneConfidence: foNum_(foGetVal_(row, headers, 'Buy Zone Confidence')),
         convictionScore: foNum_(foGetVal_(row, headers, 'Conviction Score')),

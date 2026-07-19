@@ -93,6 +93,12 @@ This roadmap organizes platform delivery into five institutional epics. Status i
 - Wave 2.4 — Buy Zone Intelligence baseline
 - Phase 2 live portfolio intelligence capabilities recorded in the repository history
 
+**In progress:**
+
+- Release 2.1.0 — Multi-Account Portfolio Intelligence Core
+  - RC3 blocker remediation implemented: single duplicate authority, valuation-currency ingress validation, collision-safe ticker fallback, bounded Step Log payloads, complete account normalization, release lineage, and automated regressions
+  - Feature review, Apps Script Lab validation, workbook validation, merge, certification, and release closure pending
+
 **Future:**
 
 - Buy Zone hardening, target-entry and freshness controls, history, and holding/watchlist distinction

@@ -19,17 +19,25 @@ function foRunPortfolioExposureAttribution() {
     const values = sheet.getDataRange().getValues();
     const headers = values[0].map(String);
 
-    const positions = foBuildExposurePositions_(values, headers);
-    const totalMarketValue = positions.reduce(function(sum, p) {
-      return sum + p.marketValue;
-    }, 0);
-
-    const accountExposure = foGroupExposure_(positions, 'account', totalMarketValue);
-    const sectorExposure = foGroupExposure_(positions, 'sector', totalMarketValue);
-    const assetClassExposure = foGroupExposure_(positions, 'assetClass', totalMarketValue);
-    const currencyExposure = foGroupExposure_(positions, 'currency', totalMarketValue);
-
-    const concentration = foBuildConcentrationMetrics_(positions, totalMarketValue);
+    const inputPositions = foBuildExposurePositions_(values, headers);
+    const householdPortfolio = foCreateHouseholdPortfolioFromPositions(
+      inputPositions,
+      FO_CONFIG.BASE_CURRENCY
+    );
+    const aggregation = foAggregateHouseholdPortfolio(householdPortfolio);
+    const accountExposure = foBuildExposureRowsFromAggregation_(
+      aggregation.allocations.account
+    );
+    const sectorExposure = foBuildExposureRowsFromAggregation_(
+      aggregation.allocations.sector
+    );
+    const assetClassExposure = foBuildExposureRowsFromAggregation_(
+      aggregation.allocations.assetClass
+    );
+    const currencyExposure = foBuildExposureRowsFromAggregation_(
+      aggregation.allocations.currency
+    );
+    const concentration = foBuildConcentrationMetricsFromAggregation_(aggregation);
 
     foWriteExposureSheet_(dashboard, 'Account Exposure', accountExposure);
     foWriteExposureSheet_(dashboard, 'Sector Exposure', sectorExposure);
@@ -41,8 +49,8 @@ function foRunPortfolioExposureAttribution() {
 
     return {
       status: 'SUCCESS',
-      positions: positions.length,
-      totalMarketValue: totalMarketValue,
+      positions: aggregation.holdingCount,
+      totalMarketValue: aggregation.totalMarketValue,
       accountGroups: accountExposure.length,
       sectorGroups: sectorExposure.length,
       assetClassGroups: assetClassExposure.length,
@@ -64,7 +72,7 @@ function foBuildExposurePositions_(values, headers) {
     const ticker = String(foGetVal_(row, headers, 'Ticker') || '').trim().toUpperCase();
     if (!ticker) continue;
 
-    const account = String(foGetVal_(row, headers, 'Account') || 'Unknown').trim() || 'Unknown';
+    const account = foGetVal_(row, headers, 'Account');
     const sector = String(foGetVal_(row, headers, 'Sector') || 'Unknown').trim() || 'Unknown';
     const assetClass = String(foGetVal_(row, headers, 'Asset Class') || 'Unknown').trim() || 'Unknown';
     const marketValue = foExposureNumber_(foGetVal_(row, headers, 'Market Value'));
@@ -73,12 +81,20 @@ function foBuildExposurePositions_(values, headers) {
     if (marketValue <= 0) continue;
 
     positions.push({
+      canonicalSecurityId: foGetVal_(row, headers, 'Canonical Security ID') || '',
+      securityId: foGetVal_(row, headers, 'Security ID') || '',
+      isin: foGetVal_(row, headers, 'ISIN') || '',
+      cusip: foGetVal_(row, headers, 'CUSIP') || '',
+      sedol: foGetVal_(row, headers, 'SEDOL') || '',
       ticker: ticker,
       account: account,
       sector: sector,
       assetClass: assetClass,
-      currency: foInferExposureCurrency_(ticker),
+      currency:
+        String(foGetVal_(row, headers, 'Currency') || '').trim().toUpperCase() ||
+        foInferExposureCurrency_(ticker),
       marketValue: marketValue,
+      marketValueCurrency: FO_CONFIG.BASE_CURRENCY,
       costBasis: costBasis,
       gainLoss: marketValue - costBasis
     });
@@ -87,70 +103,26 @@ function foBuildExposurePositions_(values, headers) {
   return positions;
 }
 
-function foGroupExposure_(positions, field, totalMarketValue) {
-  const groups = {};
-
-  positions.forEach(function(p) {
-    const key = p[field] || 'Unknown';
-
-    if (!groups[key]) {
-      groups[key] = {
-        group: key,
-        marketValue: 0,
-        costBasis: 0,
-        gainLoss: 0,
-        positionCount: 0,
-        tickers: []
-      };
-    }
-
-    groups[key].marketValue += p.marketValue;
-    groups[key].costBasis += p.costBasis;
-    groups[key].gainLoss += p.gainLoss;
-    groups[key].positionCount++;
-    groups[key].tickers.push(p.ticker);
+function foBuildExposureRowsFromAggregation_(allocation) {
+  return allocation.map(function(group) {
+    return {
+      group: group.name,
+      marketValue: group.marketValue,
+      costBasis: group.costBasis,
+      gainLoss: group.gainLoss,
+      returnPct: group.returnPct,
+      portfolioWeight: group.weight,
+      positionCount: group.holdingCount,
+      tickers: group.tickers.join(', ')
+    };
   });
-
-  return Object.keys(groups)
-    .map(function(key) {
-      const g = groups[key];
-
-      return {
-        group: g.group,
-        marketValue: g.marketValue,
-        costBasis: g.costBasis,
-        gainLoss: g.gainLoss,
-        returnPct: g.costBasis > 0 ? g.gainLoss / g.costBasis : 0,
-        portfolioWeight: totalMarketValue > 0 ? g.marketValue / totalMarketValue : 0,
-        positionCount: g.positionCount,
-        tickers: g.tickers.join(', ')
-      };
-    })
-    .sort(function(a, b) {
-      return b.marketValue - a.marketValue;
-    });
 }
 
-function foBuildConcentrationMetrics_(positions, totalMarketValue) {
-  const sorted = positions.slice().sort(function(a, b) {
-    return b.marketValue - a.marketValue;
-  });
-
-  const top1 = sorted[0] || null;
-  const top3 = sorted.slice(0, 3);
-  const top5 = sorted.slice(0, 5);
-
-  const top3Value = top3.reduce(function(sum, p) {
-    return sum + p.marketValue;
-  }, 0);
-
-  const top5Value = top5.reduce(function(sum, p) {
-    return sum + p.marketValue;
-  }, 0);
-
-  const top1Weight = totalMarketValue > 0 && top1 ? top1.marketValue / totalMarketValue : 0;
-  const top3Weight = totalMarketValue > 0 ? top3Value / totalMarketValue : 0;
-  const top5Weight = totalMarketValue > 0 ? top5Value / totalMarketValue : 0;
+function foBuildConcentrationMetricsFromAggregation_(aggregation) {
+  const top1 = aggregation.concentration.largestSecurity;
+  const top1Weight = top1 ? top1.weight : 0;
+  const top3Weight = aggregation.concentration.top3Weight;
+  const top5Weight = aggregation.concentration.top5Weight;
 
   let concentrationRisk = 'LOW';
 
@@ -161,15 +133,19 @@ function foBuildConcentrationMetrics_(positions, totalMarketValue) {
   }
 
   return {
-    totalMarketValue: totalMarketValue,
+    totalMarketValue: aggregation.totalMarketValue,
     largestPosition: top1 ? top1.ticker : '',
     largestPositionValue: top1 ? top1.marketValue : 0,
     largestPositionWeight: top1Weight,
     top3Weight: top3Weight,
     top5Weight: top5Weight,
     concentrationRisk: concentrationRisk,
-    top3Tickers: top3.map(function(p) { return p.ticker; }).join(', '),
-    top5Tickers: top5.map(function(p) { return p.ticker; }).join(', ')
+    top3Tickers: aggregation.concentration.top3.map(function(p) {
+      return p.ticker;
+    }).join(', '),
+    top5Tickers: aggregation.concentration.top5.map(function(p) {
+      return p.ticker;
+    }).join(', ')
   };
 }
 

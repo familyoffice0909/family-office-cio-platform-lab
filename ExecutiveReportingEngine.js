@@ -34,7 +34,9 @@ function foRunExecutiveReportEngine() {
       decisions.push({
         ticker: ticker,
         company: foGetVal_(row, headers, 'Company'),
-        account: foGetVal_(row, headers, 'Account'),
+        account: foNormalizeAccountIdentity_(
+          foGetVal_(row, headers, 'Account')
+        ).name,
         marketValue: foNum_(foGetVal_(row, headers, 'Market Value')),
         buyZoneConfidence: foNum_(foGetVal_(row, headers, 'Buy Zone Confidence')),
         convictionScore: foNum_(foGetVal_(row, headers, 'Conviction Score')),
@@ -151,9 +153,18 @@ function foRunExecutiveReportEngine() {
 }
 
 function foBuildExecutiveSummary_(decisions) {
-  const totalMarketValue = decisions.reduce(function(sum, d) {
-    return sum + (Number(d.marketValue) || 0);
-  }, 0);
+  const aggregation = foAggregateHouseholdPortfolio(
+    foCreateHouseholdPortfolioFromPositions(decisions.map(function(decision) {
+      return {
+        ticker: decision.ticker,
+        company: decision.company,
+        account: decision.account,
+        marketValue: Number(decision.marketValue) || 0,
+        marketValueCurrency: FO_CONFIG.BASE_CURRENCY
+      };
+    }), FO_CONFIG.BASE_CURRENCY)
+  );
+  const totalMarketValue = aggregation.totalMarketValue;
 
   const readinessValues = decisions
     .map(function(d) { return Number(d.cioReadiness || 0); })

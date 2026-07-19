@@ -37,12 +37,16 @@ describe('Wave A2.4.0 static integration', () => {
     expect(read('Menu.js')).toContain('foRunWeeklyCioReportSmokeTestA240');
   });
 
-  test('released platform metadata is reconciled to v1.3.0 and CB-002', () => {
+  test('platform metadata is reconciled to v2.1.0-rc.3 and CB-002', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
-    expect(config).toContain("PLATFORM_VERSION: 'v1.3.0'");
+    expect(config).toContain("PLATFORM_VERSION: 'v2.1.0-rc.3'");
     expect(config).toContain("BASELINE: 'CB-002'");
-    expect(packageJson.version).toBe('1.3.0');
+    expect(config).toContain("RELEASE_STATUS: 'RELEASE_CANDIDATE'");
+    expect(config).toContain(
+      "RELEASE_LINEAGE: 'v1.3.0 -> r1.3.1.1 -> v2.1.0-rc.1 -> v2.1.0-rc.2 -> v2.1.0-rc.3'"
+    );
+    expect(packageJson.version).toBe('2.1.0-rc.3');
   });
 
   test('Sprint 2.5.0 executive change detection reuses archive comparisons', () => {

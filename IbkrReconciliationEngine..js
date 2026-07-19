@@ -472,7 +472,9 @@ function foBuildIbkrPortfolioMap_(values, headers) {
     const row = values[r];
 
     const ticker = String(foGetVal_(row, headers, 'Ticker') || '').trim().toUpperCase();
-    const account = String(foGetVal_(row, headers, 'Account') || '').trim().toUpperCase();
+    const account = foNormalizeAccountIdentity_(
+      foGetVal_(row, headers, 'Account')
+    ).name.toUpperCase();
 
     if (!ticker || account !== 'INTERACTIVE BROKERS') continue;
 

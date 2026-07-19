@@ -3,6 +3,8 @@
  * Wave 3.1.2 — Orchestrator Integration & Terminal-State Semantics
  ************************************************************/
 
+const FO_STEP_LOG_MAX_MESSAGE_LENGTH = 12000;
+
 function foRunAutonomousCioOrchestrator() {
   return foWithRuntimeLock_(
     'Run Autonomous CIO Orchestrator',
@@ -120,7 +122,7 @@ function foRunOrchestratorStep_(runId, stepName, stepFunction) {
       startedAt: startedAt,
       completedAt: completedAt,
       durationSeconds: Math.round((completedAt.getTime() - startedAt.getTime()) / 1000),
-      message: foSafeStringify_(result)
+      message: foBuildOrchestratorStepMessage_(stepName, result)
     };
   } catch (error) {
     const completedAt = new Date();
@@ -132,7 +134,9 @@ function foRunOrchestratorStep_(runId, stepName, stepFunction) {
       startedAt: startedAt,
       completedAt: completedAt,
       durationSeconds: Math.round((completedAt.getTime() - startedAt.getTime()) / 1000),
-      message: error && error.message ? error.message : String(error)
+      message: foBoundStepLogMessage_(
+        error && error.message ? error.message : String(error)
+      )
     };
   }
 }
@@ -345,11 +349,58 @@ function foAppendOrchestratorStepsWave312_(dashboard, steps) {
 function foSafeStringify_(value) {
   try {
     if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
-    return JSON.stringify(value);
+    return foBoundStepLogMessage_(
+      typeof value === 'string' ? value : JSON.stringify(value)
+    );
   } catch (error) {
-    return String(value);
+    return foBoundStepLogMessage_(String(value));
   }
+}
+
+function foBuildOrchestratorStepMessage_(stepName, result) {
+  if (stepName !== 'Portfolio Snapshot') {
+    return foSafeStringify_(result);
+  }
+
+  const intelligence = result && result.intelligence || {};
+  const duplicateExposure = result && result.duplicateExposure || {};
+  const largest = intelligence.largestHoldings && intelligence.largestHoldings.length
+    ? intelligence.largestHoldings[0]
+    : null;
+  const summary = {
+    status: result && result.status || '',
+    snapshotId: result && result.snapshotId || '',
+    portfolioValue: result && Number(result.marketValue) || 0,
+    householdAccounts: result && Number(result.accountCount) || 0,
+    largestExposure: largest ? {
+      securityId: largest.securityId,
+      ticker: largest.ticker,
+      marketValue: largest.marketValue,
+      weight: largest.weight,
+      accountCount: largest.accountCount
+    } : null,
+    duplicateCount: duplicateExposure.allDuplicates
+      ? duplicateExposure.allDuplicates.length
+      : 0,
+    riskSummary: {
+      crossAccountDuplicateCount: duplicateExposure.crossAccountDuplicates
+        ? duplicateExposure.crossAccountDuplicates.length
+        : 0,
+      sameAccountDuplicateCount: duplicateExposure.sameAccountDuplicates
+        ? duplicateExposure.sameAccountDuplicates.length
+        : 0,
+      largestExposureWeight: largest ? largest.weight : 0
+    }
+  };
+
+  return foSafeStringify_(summary);
+}
+
+function foBoundStepLogMessage_(value) {
+  const message = String(value === null || value === undefined ? '' : value);
+  if (message.length <= FO_STEP_LOG_MAX_MESSAGE_LENGTH) return message;
+  const suffix = '...[TRUNCATED ' + message.length + ' CHARS]';
+  return message.slice(0, FO_STEP_LOG_MAX_MESSAGE_LENGTH - suffix.length) + suffix;
 }
 
 function foRunAutonomousCioOrchestratorSmokeTest() {

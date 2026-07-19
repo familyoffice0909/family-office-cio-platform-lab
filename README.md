@@ -8,9 +8,10 @@ Institutional-grade Family Office CIO Platform built on Google Sheets and Google
 
 ## Current repository baseline
 
-- Platform version: `v1.3.0`
+- Platform version: `v2.1.0-rc.3` (draft Release 2.1.0 RC3)
 - Configuration baseline: `CB-002`
-- Release: Unified Weekly CIO Reporting
+- Repository lineage: `v1.3.0` → `r1.3.1.1` → `v2.1.0-rc.1` → `v2.1.0-rc.2` → `v2.1.0-rc.3`
+- Release: Multi-Account Portfolio Intelligence Core
 - Lab repository: `family-office-cio-platform-lab` (`origin`)
 - Production repository: `family-office-cio-platform` (`production`)
 - Development model: feature wave → `develop` → Lab validation → Lab-certified `main` → production promotion → controlled Apps Script deployment
@@ -21,6 +22,7 @@ Institutional-grade Family Office CIO Platform built on Google Sheets and Google
 
 - Platform bootstrap, configuration, logging, versioning, validation, and backups
 - Portfolio valuation, data integrity, performance, exposure, and attribution
+- Multi-account domain, account registry, household aggregation, and duplicate-exposure analysis
 - Market data integration and symbol registry
 - IBKR reconciliation and executive data-quality scoring
 - Recommendation, market intelligence, and CIO decision engines
@@ -83,6 +85,9 @@ Never commit `.clasprc.json`, OAuth tokens, service-account keys, broker credent
 - [Release Policy](docs/engineering/RELEASE_POLICY.md)
 - [AI Collaboration Model](docs/engineering/AI_COLLABORATION_MODEL.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Release 2.1.0 — Multi-Account Portfolio Intelligence Core](docs/portfolio-intelligence/RELEASE-2.1.0-MULTI-ACCOUNT-CORE.md)
+- [Household Portfolio Aggregation API Contract](docs/portfolio-intelligence/PORTFOLIO-AGGREGATION-API.md)
+- [Release 2.1.0 RC3 Migration Guide](docs/portfolio-intelligence/MIGRATION-2.1.0-RC3.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
 - [Smoke-test reporting](docs/SMOKE_TEST.md)
