@@ -45,6 +45,16 @@ describe('Wave A2.4.0 static integration', () => {
     expect(packageJson.version).toBe('1.3.0');
   });
 
+  test('Sprint 2.5.0 executive change detection reuses archive comparisons', () => {
+    const source = read('WeeklyCioReportA240.js');
+    expect(source).toContain("WHAT'S NEW");
+    expect(source).toContain('function foA240WhatsNew_(');
+    expect(source).toContain('foA240ChangeText_(');
+    expect(source).toContain('foA240NumericDelta_(');
+    expect(source).toContain('changes.slice(0, 5)');
+    expect(source).toContain('No material changes since the previous report.');
+  });
+
   test('A2.4.0.2 percentage and executive-rounding controls remain present', () => {
     const source = read('WeeklyCioReportA240.js');
     expect(source).toContain('A2.4.0.2 Percentage Unit Normalization');
