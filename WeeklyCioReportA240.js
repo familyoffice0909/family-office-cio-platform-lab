@@ -236,6 +236,24 @@ function foA240BuildModel_(
     'Evidence-based summary generated from the governed decision state.',
     'Executive Decision State A233'
   );
+  const whatsNew = foA240WhatsNew_(
+    state,
+    actionCards,
+    conflicts,
+    priorArchive,
+    capitalDeploymentAuthorization
+  );
+  add(
+    "WHAT'S NEW",
+    whatsNew.priority,
+    'Material Changes Since Previous Report',
+    whatsNew.summary,
+    priorArchive['Report ID'] || 'NOT AVAILABLE',
+    whatsNew.changeCount,
+    whatsNew.status,
+    whatsNew.evidence,
+    'Weekly CIO Report Archive A240 | Executive Decision State A233 | Report Action Cards A233'
+  );
   add(
     'EXECUTIVE DECISION',
     priority,
@@ -1063,6 +1081,132 @@ function foA240ArchiveRow_(model, validation, run) {
     run.platformVersion,
     run.baseline
   ];
+}
+
+function foA240WhatsNew_(
+  state,
+  actionCards,
+  conflicts,
+  priorArchive,
+  deploymentAuthorization
+) {
+  const hasPriorReport = Boolean(priorArchive && priorArchive['Report ID']);
+  if (!hasPriorReport) {
+    return {
+      summary: '• Baseline weekly report established; no prior report is available for comparison.',
+      changeCount: 1,
+      priority: 'NORMAL',
+      status: 'BASELINE CREATED',
+      evidence: 'The current report establishes the comparison baseline for the next weekly cycle.'
+    };
+  }
+
+  const changes = [];
+  const addChange = function(priority, score, text) {
+    changes.push({priority: priority, score: score, text: text});
+  };
+  const posture = foA240Text_(state['Portfolio Posture']);
+  const execution = foA240Text_(state['Execution Status']);
+  const riskLevel = foA240Text_(state['Portfolio Risk Level']);
+  const riskScore = foA240Number_(state['Risk Score']);
+  const materiality = foA240Number_(state['Overall Materiality']);
+  const priorPosture = priorArchive['Portfolio Posture'];
+  const priorExecution = priorArchive['Execution Status'];
+  const priorRiskLevel = priorArchive['Portfolio Risk Level'];
+  const priorRiskScore = priorArchive['Risk Score'];
+  const priorMateriality = priorArchive['Overall Materiality'];
+  const priorAuthorization = priorArchive['Capital Deployment Authorization'];
+  const priorConflictCount = priorArchive['Conflict Count'];
+
+  if (foA240ChangeText_(priorPosture, posture) !== 'UNCHANGED') {
+    addChange('CRITICAL', 100, 'Portfolio posture changed ' +
+      foA240ChangeText_(priorPosture, posture) + '.');
+  }
+  if (foA240ChangeText_(priorExecution, execution) !== 'UNCHANGED') {
+    addChange('CRITICAL', 95, 'Execution status changed ' +
+      foA240ChangeText_(priorExecution, execution) + '.');
+  }
+  if (foA240ChangeText_(priorAuthorization, deploymentAuthorization) !== 'UNCHANGED') {
+    addChange('CRITICAL', 90, 'Capital deployment authorization changed ' +
+      foA240ChangeText_(priorAuthorization, deploymentAuthorization) + '.');
+  }
+  if (foA240ChangeText_(priorRiskLevel, riskLevel) !== 'UNCHANGED') {
+    addChange('HIGH', 85, 'Portfolio risk changed ' +
+      foA240ChangeText_(priorRiskLevel, riskLevel) + '.');
+  }
+
+  const materialityDelta = foA240NumericDelta_(priorMateriality, materiality);
+  if (Math.abs(materialityDelta) >= 5) {
+    addChange(
+      Math.abs(materialityDelta) >= 10 ? 'CRITICAL' : 'HIGH',
+      80 + Math.min(Math.abs(materialityDelta), 19),
+      'Overall materiality ' + (materialityDelta > 0 ? 'increased' : 'decreased') +
+        ' ' + foA240Number_(priorMateriality) + ' → ' + materiality +
+        ' (' + (materialityDelta > 0 ? '+' : '') + materialityDelta + ').'
+    );
+  }
+
+  const riskDelta = foA240NumericDelta_(priorRiskScore, riskScore);
+  if (Math.abs(riskDelta) >= 5) {
+    addChange(
+      Math.abs(riskDelta) >= 10 ? 'CRITICAL' : 'HIGH',
+      75 + Math.min(Math.abs(riskDelta), 19),
+      'Risk score ' + (riskDelta > 0 ? 'increased' : 'decreased') +
+        ' ' + foA240Number_(priorRiskScore) + ' → ' + riskScore +
+        ' (' + (riskDelta > 0 ? '+' : '') + riskDelta + ').'
+    );
+  }
+
+  const conflictDelta = foA240NumericDelta_(priorConflictCount, conflicts.length);
+  if (conflictDelta !== 0) {
+    addChange(
+      conflicts.length ? 'CRITICAL' : 'HIGH',
+      conflicts.length ? 92 : 70,
+      conflicts.length
+        ? 'Open report conflicts changed ' + foA240Number_(priorConflictCount) +
+          ' → ' + conflicts.length + '.'
+        : 'All previously reported conflicts are now clear.'
+    );
+  }
+
+  actionCards.forEach(function(card) {
+    const confidenceDelta = foA240Number_(card['Confidence Delta']);
+    const materialityScore = foA240Number_(card['Materiality Score']);
+    const executionStatus = foA240Text_(card['Execution Status']);
+    if (Math.abs(confidenceDelta) < 5 && materialityScore < 70) return;
+    const label = foA240ActionLabel_(card);
+    const direction = confidenceDelta > 0
+      ? 'increased'
+      : (confidenceDelta < 0 ? 'decreased' : 'is unchanged');
+    addChange(
+      materialityScore >= 85 ? 'CRITICAL' : 'HIGH',
+      materialityScore,
+      label + ' confidence ' + direction +
+        (confidenceDelta ? ' by ' + Math.abs(confidenceDelta) + ' points' : '') +
+        '; execution status is ' + executionStatus + '.'
+    );
+  });
+
+  changes.sort(function(a, b) { return b.score - a.score; });
+  const selected = changes.slice(0, 5);
+  if (!selected.length) {
+    return {
+      summary: 'No material changes since the previous report.',
+      changeCount: 0,
+      priority: 'NORMAL',
+      status: 'UNCHANGED',
+      evidence: 'Existing archive comparisons produced no material executive change above the configured thresholds.'
+    };
+  }
+  return {
+    summary: selected.map(function(item) { return '• ' + item.text; }).join('\n'),
+    changeCount: selected.length,
+    priority: selected.some(function(item) { return item.priority === 'CRITICAL'; })
+      ? 'CRITICAL'
+      : 'HIGH',
+    status: 'MATERIAL CHANGE',
+    evidence: 'Executive changes are ranked by materiality and limited to five bullets.'
+  };
 }
 
 function foA240ExecutiveSummary_(state, deploymentAuthorization) {
