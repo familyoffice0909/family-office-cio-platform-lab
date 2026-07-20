@@ -69,7 +69,7 @@ function foRunWeeklyCioReportA240(options) {
     dashboard,
     'WEEKLY_CIO_REPORT_A240'
   );
-  const archiveSheet = foEnsureSheetA230(
+  const archiveSheet = foA240EnsureAdditiveSchema_(
     dashboard,
     'WEEKLY_CIO_REPORT_ARCHIVE_A240'
   );
@@ -564,6 +564,16 @@ function foA240BuildModel_(
         ' | Portfolio weight: ' + foA240PercentPointsText_(positionWeight) +
         ' | Confidence: ' + foA240Number_(card.Confidence) +
         ' | Materiality: ' + foA240Number_(card['Materiality Score']) +
+        ' | Recommendation: ' + foA240Text_(card.Recommendation) +
+        ' | Quality: ' +
+          foA240Text_(card['Recommendation Quality Grade']) +
+          ' (' +
+          foA240Number_(card['Recommendation Quality Score']) + ')' +
+        ' | Evidence balance: ' +
+          foA240Text_(card['Evidence Balance']) +
+        ' | Contradiction: ' +
+          foA240Text_(card['Contradiction Status']) +
+        ' | ' + foA240Text_(card['Quality Rationale']) +
         ' | ' + foA240Text_(card.Commentary),
       'Report Action Cards A233 | Position Risk'
     );
@@ -645,7 +655,8 @@ function foA240BuildModel_(
     costBasisCoveragePct: costBasisCoverage,
     returnAttributionCoveragePct: returnCoverage,
     actionCardCount: actionCards.length,
-    conflictCount: conflicts.length
+    conflictCount: conflicts.length,
+    actionQualitySignature: foA240ActionQualitySignature_(actionCards)
   };
 }
 
@@ -668,6 +679,9 @@ function foRunWeeklyCioReportValidationA240(
   );
   const conflictSheet = dashboard.getSheetByName(
     FO_SHEETS.REPORT_CONFLICTS_A233
+  );
+  const actionSheet = dashboard.getSheetByName(
+    FO_SHEETS.REPORT_ACTION_CARDS_A233
   );
 
   suite.add('SCHEMA', 'Weekly report schema valid', function() {
@@ -727,6 +741,35 @@ function foRunWeeklyCioReportValidationA240(
     return foA240Text_(reported['Current Value / Action']) ===
       foA240Text_(source['Execution Status']);
   }, 'CRITICAL');
+
+  suite.add('QUALITY', 'Recommendation quality is inherited from A2.3.3',
+    function() {
+      const cards = foA240RowsForRun_(
+        actionSheet,
+        'Run ID',
+        expectedDecisionRunId
+      );
+      return cards.every(function(card) {
+        const reported = foA240FindReportMetric_(
+          reportSheet,
+          foA240ActionLabel_(card)
+        );
+        const evidence = foA240Text_(
+          reported['Evidence / Commentary']
+        );
+        const grade = foA240Text_(
+          card['Recommendation Quality Grade']
+        );
+        const contradiction = foA240Text_(
+          card['Contradiction Status']
+        );
+        return Boolean(
+          reported['Metric / Ticker'] &&
+          evidence.indexOf('Quality: ' + grade) >= 0 &&
+          evidence.indexOf('Contradiction: ' + contradiction) >= 0
+        );
+      });
+    }, 'HIGH');
 
   suite.add('POLICY', 'Capital deployment authorization is controlled',
     function() {
@@ -1079,7 +1122,8 @@ function foA240ArchiveRow_(model, validation, run) {
     model.conflictCount,
     validation.status,
     run.platformVersion,
-    run.baseline
+    run.baseline,
+    model.actionQualitySignature
   ];
 }
 
@@ -1117,6 +1161,9 @@ function foA240WhatsNew_(
   const priorMateriality = priorArchive['Overall Materiality'];
   const priorAuthorization = priorArchive['Capital Deployment Authorization'];
   const priorConflictCount = priorArchive['Conflict Count'];
+  const priorQualitySignature = foA240Text_(
+    priorArchive['Action Quality Signature']
+  );
 
   if (foA240ChangeText_(priorPosture, posture) !== 'UNCHANGED') {
     addChange('CRITICAL', 100, 'Portfolio posture changed ' +
@@ -1187,6 +1234,35 @@ function foA240WhatsNew_(
     );
   });
 
+  if (priorQualitySignature) {
+    const priorQuality = foA240ParseActionQualitySignature_(
+      priorQualitySignature
+    );
+    const currentQuality = foA240ParseActionQualitySignature_(
+      foA240ActionQualitySignature_(actionCards)
+    );
+    Object.keys(currentQuality).forEach(function(key) {
+      const current = currentQuality[key];
+      const prior = priorQuality[key];
+      if (!prior) return;
+      if (
+        prior.grade === current.grade &&
+        prior.contradiction === current.contradiction
+      ) {
+        return;
+      }
+      const blocked = current.contradiction === 'BLOCKED' ||
+        current.grade === 'INSUFFICIENT DATA';
+      addChange(
+        blocked ? 'CRITICAL' : 'HIGH',
+        blocked ? 94 : 78,
+        current.label + ' recommendation quality changed ' +
+          prior.grade + '/' + prior.contradiction + ' → ' +
+          current.grade + '/' + current.contradiction + '.'
+      );
+    });
+  }
+
   changes.sort(function(a, b) { return b.score - a.score; });
   const selected = changes.slice(0, 5);
   if (!selected.length) {
@@ -1207,6 +1283,86 @@ function foA240WhatsNew_(
     status: 'MATERIAL CHANGE',
     evidence: 'Executive changes are ranked by materiality and limited to five bullets.'
   };
+}
+
+function foA240ActionQualitySignature_(actionCards) {
+  return actionCards.map(function(card) {
+    const ticker = foA240Text_(card.Ticker).toUpperCase();
+    const account = foA240Text_(card.Account).toUpperCase();
+    const grade = foA240Text_(
+      card['Recommendation Quality Grade'] || 'NOT ASSESSED'
+    ).toUpperCase();
+    const contradiction = foA240Text_(
+      card['Contradiction Status'] || 'NOT ASSESSED'
+    ).toUpperCase();
+    return [ticker, account, grade, contradiction].join('~');
+  }).sort().join(';');
+}
+
+function foA240ParseActionQualitySignature_(signature) {
+  const result = {};
+  foA240Text_(signature).split(';').forEach(function(segment) {
+    if (!segment) return;
+    const parts = segment.split('~');
+    if (parts.length < 4) return;
+    const ticker = parts[0];
+    const account = parts[1];
+    const key = ticker + '|' + account;
+    result[key] = {
+      label: ticker + (account ? ' (' + account + ')' : ''),
+      grade: parts[2],
+      contradiction: parts[3]
+    };
+  });
+  return result;
+}
+
+function foA240EnsureAdditiveSchema_(dashboard, key) {
+  const schema = foGetSchemaA230(key);
+  let sheet = dashboard.getSheetByName(schema.sheetName);
+  if (!sheet || sheet.getLastRow() === 0) {
+    return foEnsureSheetA230(dashboard, key);
+  }
+
+  const expected = schema.headers.slice();
+  const actual = sheet.getRange(
+    1,
+    1,
+    1,
+    sheet.getLastColumn()
+  ).getDisplayValues()[0].map(foA240Text_);
+
+  if (actual.length > expected.length) {
+    throw new Error(
+      'A2.6.0 additive schema migration found unexpected columns: ' +
+      schema.sheetName
+    );
+  }
+  for (let index = 0; index < actual.length; index++) {
+    if (actual[index] !== expected[index]) {
+      throw new Error(
+        'A2.6.0 additive schema migration found incompatible header at ' +
+        schema.sheetName + ' column ' + (index + 1)
+      );
+    }
+  }
+
+  if (actual.length < expected.length) {
+    if (sheet.getMaxColumns() < expected.length) {
+      sheet.insertColumnsAfter(
+        sheet.getMaxColumns(),
+        expected.length - sheet.getMaxColumns()
+      );
+    }
+    sheet.getRange(
+      1,
+      actual.length + 1,
+      1,
+      expected.length - actual.length
+    ).setValues([expected.slice(actual.length)]);
+  }
+
+  return foEnsureSheetA230(dashboard, key);
 }
 
 function foA240ExecutiveSummary_(state, deploymentAuthorization) {

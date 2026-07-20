@@ -140,7 +140,24 @@ function foReadCapitalDeploymentInputs_(dashboard) {
         foCapitalVal_(row, headers, 'Target Entry Price'),
         0
       ),
-      executiveReason: String(foCapitalVal_(row, headers, 'Executive Reason') || '').trim()
+      executiveReason: String(foCapitalVal_(row, headers, 'Executive Reason') || '').trim(),
+      recommendationQualityScore: foCapitalNumber_(
+        foCapitalVal_(row, headers, 'Recommendation Quality Score'),
+        0
+      ),
+      recommendationQualityGrade: String(
+        foCapitalVal_(row, headers, 'Recommendation Quality Grade') ||
+        'NOT ASSESSED'
+      ).trim().toUpperCase(),
+      evidenceBalance: String(
+        foCapitalVal_(row, headers, 'Evidence Balance') || 'NOT ASSESSED'
+      ).trim().toUpperCase(),
+      contradictionStatus: String(
+        foCapitalVal_(row, headers, 'Contradiction Status') || 'NOT ASSESSED'
+      ).trim().toUpperCase(),
+      qualityRationale: String(
+        foCapitalVal_(row, headers, 'Quality Rationale') || ''
+      ).trim()
     };
   }).filter(function(item) {
     return item.ticker;
@@ -265,6 +282,15 @@ function foBuildCapitalDeploymentRecord_(item, policy, portfolioMateriality) {
   if (item.recommendation === 'HOLD' || item.recommendation === 'AVOID') {
     blockers.push('Recommendation not deployable');
   }
+  if (item.recommendationQualityGrade === 'INSUFFICIENT DATA') {
+    blockers.push('INSUFFICIENT RECOMMENDATION DATA');
+  }
+  if (item.recommendationQualityGrade === 'LOW') {
+    blockers.push('LOW RECOMMENDATION QUALITY');
+  }
+  if (item.contradictionStatus === 'BLOCKED') {
+    blockers.push('RECOMMENDATION CONTRADICTION');
+  }
 
   const isBlocked = blockers.length > 0;
   const deploymentDecision = foCapitalDeploymentDecision_(
@@ -293,6 +319,11 @@ function foBuildCapitalDeploymentRecord_(item, policy, portfolioMateriality) {
     distancePct: item.distancePct,
     currentPrice: item.currentPrice,
     targetEntryPrice: item.targetEntryPrice,
+    recommendationQualityScore: item.recommendationQualityScore,
+    recommendationQualityGrade: item.recommendationQualityGrade,
+    evidenceBalance: item.evidenceBalance,
+    contradictionStatus: item.contradictionStatus,
+    qualityRationale: item.qualityRationale,
     isBlocked: isBlocked,
     blockers: blockers.join(' | ') || 'NONE',
     executiveReason: foCapitalExecutiveReason_(
@@ -346,9 +377,13 @@ function foCapitalExecutiveReason_(item, score, decision, blockers) {
     'Risk ' + item.risk,
     'Confidence ' + item.confidence,
     'Trend ' + item.trend,
-    'Zone ' + item.zonePosition
+    'Zone ' + item.zonePosition,
+    'Quality ' + item.recommendationQualityGrade +
+      ' (' + item.recommendationQualityScore + ')',
+    'Contradiction ' + item.contradictionStatus
   ];
   if (blockers.length) parts.push('Blockers ' + blockers.join(', '));
+  if (item.qualityRationale) parts.push(item.qualityRationale);
   return parts.join(' | ');
 }
 
@@ -360,7 +395,9 @@ function foCapitalDeploymentHeaders_() {
     'Price Freshness', 'Zone Position', 'Distance to Entry %', 'Current Price',
     'Target Entry Price', 'Blocked', 'Blockers', 'Executive Reason',
     'Portfolio Directive', 'Portfolio Materiality Score', 'Timestamp',
-    'Platform Version', 'Baseline'
+    'Platform Version', 'Baseline', 'Recommendation Quality Score',
+    'Recommendation Quality Grade', 'Evidence Balance',
+    'Contradiction Status', 'Quality Rationale'
   ];
 }
 
@@ -388,7 +425,12 @@ function foWriteCapitalDeploymentPriorities_(dashboard, assessment) {
       item.isBlocked ? 'YES' : 'NO', item.blockers,
       item.executiveReason, assessment.portfolioDirective,
       assessment.portfolioMateriality.score, now,
-      FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE
+      FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE,
+      item.recommendationQualityScore,
+      item.recommendationQualityGrade,
+      item.evidenceBalance,
+      item.contradictionStatus,
+      item.qualityRationale
     ];
   });
 
@@ -406,6 +448,7 @@ function foWriteCapitalDeploymentPriorities_(dashboard, assessment) {
   sheet.autoResizeColumns(1, headers.length);
   sheet.setColumnWidth(21, 320);
   sheet.setColumnWidth(22, 560);
+  sheet.setColumnWidth(headers.indexOf('Quality Rationale') + 1, 560);
 }
 
 function foAppendCapitalDeploymentHistory_(dashboard, assessment) {
