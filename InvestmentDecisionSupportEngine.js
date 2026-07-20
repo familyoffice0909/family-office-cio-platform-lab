@@ -1,6 +1,6 @@
 /**
  * Investment Decision Support Engine
- * Wave 2.5.3-A — Magnitude-Weighted Trend Scoring
+ * Sprint 2.6.0 — Recommendation Quality Intelligence
  */
 
 function foRunInvestmentDecisionSupport() {
@@ -156,6 +156,17 @@ function foBuildDecisionRecord_(item, history, materialityPolicy) {
     materialityPolicy
   );
   const allocationBand = foDecisionAllocationBand_(item, action);
+  const quality = foAssessRecommendationQuality_(
+    item,
+    action,
+    allocationBand,
+    trend,
+    convictionDelta,
+    riskDelta,
+    confidenceDelta,
+    distanceDelta,
+    materialityAssessment
+  );
   const priorityScore = foDecisionPriority_(
     item,
     materialityAssessment.score,
@@ -186,11 +197,21 @@ function foBuildDecisionRecord_(item, history, materialityPolicy) {
     zonePosition: item.zonePosition,
     currentPrice: item.currentPrice,
     targetEntryPrice: item.targetEntryPrice,
+    recommendationQualityScore: quality.score,
+    recommendationQualityGrade: quality.grade,
+    supportingEvidence: quality.supportingEvidence,
+    opposingEvidence: quality.opposingEvidence,
+    dataLimitations: quality.dataLimitations,
+    evidenceBalance: quality.evidenceBalance,
+    contradictionStatus: quality.contradictionStatus,
+    contradictionReasons: quality.contradictionReasons,
+    qualityRationale: quality.qualityRationale,
     executiveReason: foDecisionExecutiveReason_(
       item,
       trend,
       materialityAssessment,
-      allocationBand
+      allocationBand,
+      quality
     )
   };
 }
@@ -219,6 +240,284 @@ function foDecisionAllocationBand_(item, action) {
   if (item.convictionScore >= 90 && item.riskScore <= 25) return '3-5%';
   if (item.convictionScore >= 80 && item.riskScore <= 35) return '2-4%';
   return '1-2%';
+}
+
+function foAssessRecommendationQuality_(
+  item,
+  action,
+  allocationBand,
+  trend,
+  convictionDelta,
+  riskDelta,
+  confidenceDelta,
+  distanceDelta,
+  materialityAssessment
+) {
+  const supporting = [];
+  const opposing = [];
+  const limitations = [];
+  const reviewReasons = [];
+  const blockedReasons = [];
+  const freshness = String(item.priceFreshness || '').trim().toUpperCase();
+  const recommendation = String(item.recommendation || '').trim().toUpperCase();
+  const normalizedAction = String(action || '').trim().toUpperCase();
+  const deployable = foDecisionIsDeployableAction_(normalizedAction);
+  const currentPrice = Number(item.currentPrice) || 0;
+  const targetPrice = Number(item.targetEntryPrice) || 0;
+  const confidence = foDecisionClamp_(item.confidence, 0, 100);
+  const conviction = foDecisionClamp_(item.convictionScore, 0, 100);
+  const risk = foDecisionClamp_(item.riskScore, 0, 100);
+  const materiality = foDecisionClamp_(
+    materialityAssessment && materialityAssessment.score,
+    0,
+    100
+  );
+
+  let dataReadiness = 0;
+  if (freshness === 'FRESH') {
+    dataReadiness += 12;
+    supporting.push('Fresh price data');
+  } else if (freshness === 'STALE') {
+    dataReadiness += 3;
+    limitations.push('Stale current price');
+    opposing.push('Price freshness prevents execution');
+  } else {
+    limitations.push('Missing current price');
+    opposing.push('Essential market data is unavailable');
+  }
+
+  if (currentPrice > 0) {
+    dataReadiness += 5;
+  } else if (limitations.indexOf('Missing current price') < 0) {
+    limitations.push('Current price is not positive');
+  }
+
+  if (targetPrice > 0) {
+    dataReadiness += 4;
+    supporting.push('Target entry is available');
+  } else {
+    limitations.push('Target entry is unavailable');
+    if (deployable) {
+      blockedReasons.push('Deployable action has no target entry');
+    }
+  }
+
+  const zone = String(item.zonePosition || '').trim().toUpperCase();
+  if (zone && zone !== 'UNAVAILABLE') {
+    dataReadiness += 2;
+    if (zone === 'IN BUY ZONE' || zone === 'BELOW ZONE') {
+      supporting.push('Favourable zone position: ' + zone);
+    } else if (zone === 'ABOVE ZONE') {
+      opposing.push('Price is above the configured buy zone');
+    }
+  } else {
+    limitations.push('Zone position is unavailable');
+  }
+
+  if (item.distancePct !== null && item.distancePct !== undefined) {
+    dataReadiness += 2;
+    if (Math.abs(Number(item.distancePct) || 0) <= 0.05) {
+      supporting.push('Price is near the target entry');
+    } else if ((Number(item.distancePct) || 0) > 0.10) {
+      opposing.push('Price is materially above target entry');
+    }
+  } else {
+    limitations.push('Distance to target is unavailable');
+  }
+
+  const signalStrength = Math.round(
+    ((confidence + conviction) / 2) * 0.25
+  );
+  if (confidence >= 70) {
+    supporting.push('Confidence ' + confidence);
+  } else if (confidence < 60) {
+    opposing.push('Confidence below deployment threshold: ' + confidence);
+  }
+  if (conviction >= 75) {
+    supporting.push('Conviction ' + conviction);
+  } else if (conviction < 60) {
+    opposing.push('Conviction is weak: ' + conviction);
+  }
+
+  const riskAlignment = Math.round((100 - risk) * 0.20);
+  if (risk <= 35) {
+    supporting.push('Risk is controlled at ' + risk);
+  } else if (risk > 50) {
+    opposing.push('Risk exceeds deployment threshold: ' + risk);
+  } else {
+    opposing.push('Risk requires position-size discipline: ' + risk);
+  }
+
+  let signalConsistency = 12;
+  if (foDecisionRecommendationActionAligned_(recommendation, normalizedAction)) {
+    signalConsistency += 4;
+    supporting.push('Recommendation and action are aligned');
+  } else {
+    signalConsistency -= 6;
+    const mismatch = 'Recommendation ' + recommendation +
+      ' conflicts with action ' + normalizedAction;
+    opposing.push(mismatch);
+    if (deployable || recommendation === 'AVOID') {
+      blockedReasons.push(mismatch);
+    } else {
+      reviewReasons.push(mismatch);
+    }
+  }
+
+  if (trend === 'IMPROVING') {
+    signalConsistency += 2;
+    supporting.push('Trend is improving');
+  } else if (trend === 'DETERIORATING') {
+    signalConsistency -= 2;
+    opposing.push('Trend is deteriorating');
+  }
+
+  const netDelta =
+    Number(convictionDelta || 0) -
+    Number(riskDelta || 0) +
+    Number(confidenceDelta || 0) -
+    Number(distanceDelta || 0) * 100;
+  if (netDelta >= 10) {
+    signalConsistency += 2;
+    supporting.push('Signal deltas are improving');
+  } else if (netDelta <= -10) {
+    signalConsistency -= 2;
+    opposing.push('Signal deltas are deteriorating');
+  }
+
+  if (
+    trend === 'IMPROVING' &&
+    Number(riskDelta || 0) >= 10 &&
+    Number(confidenceDelta || 0) <= -10
+  ) {
+    reviewReasons.push(
+      'Improving classification conflicts with deteriorating risk and confidence'
+    );
+  }
+
+  signalConsistency = foDecisionClamp_(signalConsistency, 0, 20);
+
+  let decisionContext = Math.round(materiality * 0.06);
+  if (
+    zone === 'IN BUY ZONE' ||
+    zone === 'BELOW ZONE' ||
+    (item.distancePct !== null && Math.abs(Number(item.distancePct) || 0) <= 0.05)
+  ) {
+    decisionContext += 4;
+  }
+  decisionContext = foDecisionClamp_(decisionContext, 0, 10);
+  if (materiality >= 70) {
+    supporting.push('Materiality ' + materiality);
+  }
+
+  if (deployable && freshness !== 'FRESH') {
+    blockedReasons.push('Deployable action requires fresh price data');
+  }
+  if (freshness !== 'FRESH' || currentPrice <= 0) {
+    blockedReasons.push('Essential price data is missing or stale');
+  }
+  if (deployable && confidence < 60) {
+    blockedReasons.push('Deployable action has confidence below 60');
+  }
+  if (deployable && risk > 50) {
+    blockedReasons.push('Deployable action has risk above 50');
+  }
+  if (
+    recommendation === 'AVOID' &&
+    String(allocationBand || '').trim() !== '0%'
+  ) {
+    blockedReasons.push('AVOID recommendation has a positive allocation band');
+  }
+
+  let score = Math.round(
+    dataReadiness +
+    signalStrength +
+    riskAlignment +
+    signalConsistency +
+    decisionContext
+  );
+  score = foDecisionClamp_(score, 0, 100);
+
+  const essentialDataMissing =
+    freshness !== 'FRESH' || currentPrice <= 0;
+  let contradictionStatus = 'CLEAR';
+  if (blockedReasons.length) {
+    contradictionStatus = 'BLOCKED';
+  } else if (reviewReasons.length) {
+    contradictionStatus = 'REVIEW';
+  }
+
+  if (essentialDataMissing) {
+    score = Math.min(score, 49);
+  } else if (contradictionStatus === 'BLOCKED') {
+    score = Math.min(score, 59);
+  }
+
+  let grade = 'LOW';
+  if (essentialDataMissing) {
+    grade = 'INSUFFICIENT DATA';
+  } else if (score >= 80 && contradictionStatus === 'CLEAR') {
+    grade = 'HIGH';
+  } else if (score >= 60 && contradictionStatus !== 'BLOCKED') {
+    grade = 'MEDIUM';
+  }
+
+  let evidenceBalance = 'MIXED';
+  if (essentialDataMissing) {
+    evidenceBalance = 'INSUFFICIENT';
+  } else if (supporting.length >= opposing.length + 2) {
+    evidenceBalance = 'POSITIVE';
+  } else if (opposing.length >= supporting.length + 2) {
+    evidenceBalance = 'NEGATIVE';
+  }
+
+  const contradictionReasons = blockedReasons.concat(reviewReasons);
+  const principalConstraint = contradictionReasons[0] ||
+    limitations[0] || opposing[0] || 'No material constraint';
+  const qualityRationale =
+    grade + ' quality (' + score + '/100)' +
+    ' | Evidence ' + evidenceBalance +
+    ' | Contradiction ' + contradictionStatus +
+    ' | Principal constraint: ' + principalConstraint;
+
+  return {
+    score: score,
+    grade: grade,
+    supportingEvidence: supporting.join(' | ') || 'NONE',
+    opposingEvidence: opposing.join(' | ') || 'NONE',
+    dataLimitations: limitations.join(' | ') || 'NONE',
+    evidenceBalance: evidenceBalance,
+    contradictionStatus: contradictionStatus,
+    contradictionReasons: contradictionReasons.join(' | ') || 'NONE',
+    qualityRationale: qualityRationale
+  };
+}
+
+function foDecisionIsDeployableAction_(action) {
+  return [
+    'DEPLOY NOW',
+    'BUY',
+    'ACCUMULATE'
+  ].indexOf(String(action || '').trim().toUpperCase()) >= 0;
+}
+
+function foDecisionRecommendationActionAligned_(recommendation, action) {
+  const allowed = {
+    'STRONG BUY': ['DEPLOY NOW', 'BUY'],
+    BUY: ['BUY', 'DEPLOY NOW'],
+    ACCUMULATE: ['ACCUMULATE'],
+    WATCH: ['WATCH'],
+    HOLD: ['HOLD', 'REFRESH DATA'],
+    AVOID: ['AVOID']
+  };
+  const actions = allowed[String(recommendation || '').toUpperCase()] || [];
+  return actions.indexOf(String(action || '').toUpperCase()) >= 0;
+}
+
+function foDecisionClamp_(value, minimum, maximum) {
+  const number = Number(value);
+  if (!isFinite(number)) return minimum;
+  return Math.max(minimum, Math.min(maximum, number));
 }
 
 function foDecisionTrend_(
@@ -318,7 +617,8 @@ function foDecisionExecutiveReason_(
   item,
   trend,
   materialityAssessment,
-  allocationBand
+  allocationBand,
+  quality
 ) {
   const parts = [
     item.recommendation,
@@ -328,7 +628,9 @@ function foDecisionExecutiveReason_(
     'Driver ' + materialityAssessment.primaryDriver,
     'Conviction ' + item.convictionScore,
     'Risk ' + item.riskScore,
-    'Allocation ' + allocationBand
+    'Allocation ' + allocationBand,
+    'Quality ' + quality.grade + ' (' + quality.score + ')',
+    'Contradiction ' + quality.contradictionStatus
   ];
 
   if (item.priceFreshness !== 'FRESH') {
@@ -431,7 +733,16 @@ function foDecisionSupportHeaders_() {
     'Executive Reason',
     'Timestamp',
     'Platform Version',
-    'Baseline'
+    'Baseline',
+    'Recommendation Quality Score',
+    'Recommendation Quality Grade',
+    'Supporting Evidence',
+    'Opposing Evidence',
+    'Data Limitations',
+    'Evidence Balance',
+    'Contradiction Status',
+    'Contradiction Reasons',
+    'Quality Rationale'
   ];
 }
 
@@ -476,7 +787,16 @@ function foWriteDecisionSupport_(dashboard, decisions) {
       item.executiveReason,
       now,
       FO_CONFIG.PLATFORM_VERSION,
-      FO_CONFIG.BASELINE
+      FO_CONFIG.BASELINE,
+      item.recommendationQualityScore,
+      item.recommendationQualityGrade,
+      item.supportingEvidence,
+      item.opposingEvidence,
+      item.dataLimitations,
+      item.evidenceBalance,
+      item.contradictionStatus,
+      item.contradictionReasons,
+      item.qualityRationale
     ];
   });
 
@@ -518,6 +838,10 @@ function foWriteDecisionSupport_(dashboard, decisions) {
   sheet.autoResizeColumns(1, headers.length);
   sheet.setColumnWidth(10, 440);
   sheet.setColumnWidth(25, 520);
+  sheet.setColumnWidth(headers.indexOf('Supporting Evidence') + 1, 520);
+  sheet.setColumnWidth(headers.indexOf('Opposing Evidence') + 1, 520);
+  sheet.setColumnWidth(headers.indexOf('Data Limitations') + 1, 420);
+  sheet.setColumnWidth(headers.indexOf('Quality Rationale') + 1, 560);
 }
 
 function foAppendDecisionHistory_(dashboard, decisions) {
@@ -552,7 +876,16 @@ function foAppendDecisionHistory_(dashboard, decisions) {
       FO_CONFIG.PLATFORM_VERSION,
       FO_CONFIG.BASELINE,
       event.eventType,
-      event.signature
+      event.signature,
+      item.recommendationQualityScore,
+      item.recommendationQualityGrade,
+      item.supportingEvidence,
+      item.opposingEvidence,
+      item.dataLimitations,
+      item.evidenceBalance,
+      item.contradictionStatus,
+      item.contradictionReasons,
+      item.qualityRationale
     ];
   });
 
@@ -594,7 +927,16 @@ function foDecisionHistoryHeaders_() {
     'Platform Version',
     'Baseline',
     'Event Type',
-    'State Signature'
+    'State Signature',
+    'Recommendation Quality Score',
+    'Recommendation Quality Grade',
+    'Supporting Evidence',
+    'Opposing Evidence',
+    'Data Limitations',
+    'Evidence Balance',
+    'Contradiction Status',
+    'Contradiction Reasons',
+    'Quality Rationale'
   ];
 }
 
@@ -667,7 +1009,16 @@ function foRunInvestmentDecisionSupportSmokeTest() {
     'Allocation Band',
     'Priority Score',
     'Current Price',
-    'Target Entry Price'
+    'Target Entry Price',
+    'Recommendation Quality Score',
+    'Recommendation Quality Grade',
+    'Supporting Evidence',
+    'Opposing Evidence',
+    'Data Limitations',
+    'Evidence Balance',
+    'Contradiction Status',
+    'Contradiction Reasons',
+    'Quality Rationale'
   ].forEach(function(name) {
     if (headers.indexOf(name) === -1) {
       throw new Error('Missing decision-support column: ' + name);

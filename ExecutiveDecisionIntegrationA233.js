@@ -45,7 +45,7 @@ function foRunExecutiveDecisionIntegrationA233() {
     [foA233StateRow_(state)]
   );
   foReplaceRowsA230(
-    foEnsureSheetA230(dashboard, 'REPORT_ACTION_CARDS_A233'),
+    foA233EnsureAdditiveSchema_(dashboard, 'REPORT_ACTION_CARDS_A233'),
     actionCards.map(foA233ActionCardRow_)
   );
   foReplaceRowsA230(
@@ -209,7 +209,24 @@ function foA233ReadDecisionSupport_(dashboard) {
       zonePosition: foA233Text_(row['Zone Position']),
       currentPrice: foA233Number_(row['Current Price']),
       targetEntryPrice: foA233Number_(row['Target Entry Price']),
-      executiveReason: foA233Text_(row['Executive Reason'])
+      executiveReason: foA233Text_(row['Executive Reason']),
+      recommendationQualityScore: foA233Number_(
+        row['Recommendation Quality Score']
+      ),
+      recommendationQualityGrade: foA233Text_(
+        row['Recommendation Quality Grade'] || 'NOT ASSESSED'
+      ).toUpperCase(),
+      supportingEvidence: foA233Text_(row['Supporting Evidence']),
+      opposingEvidence: foA233Text_(row['Opposing Evidence']),
+      dataLimitations: foA233Text_(row['Data Limitations']),
+      evidenceBalance: foA233Text_(
+        row['Evidence Balance'] || 'NOT ASSESSED'
+      ).toUpperCase(),
+      contradictionStatus: foA233Text_(
+        row['Contradiction Status'] || 'NOT ASSESSED'
+      ).toUpperCase(),
+      contradictionReasons: foA233Text_(row['Contradiction Reasons']),
+      qualityRationale: foA233Text_(row['Quality Rationale'])
     };
   }).filter(function(item) {
     return item.ticker;
@@ -240,6 +257,12 @@ function foA233ResolvePolicy_(risk, readiness, decisions) {
   const staleActionable = actionable.filter(function(item) {
     return item.priceFreshness !== 'FRESH';
   });
+  const qualityBlockedActionable = actionable.filter(function(item) {
+    return foA233QualityBlocksExecution_(item);
+  });
+  const qualityReviewActionable = actionable.filter(function(item) {
+    return item.contradictionStatus === 'REVIEW';
+  });
 
   let portfolioPosture = 'HOLD / MONITOR';
   if (risk.critical) {
@@ -251,8 +274,12 @@ function foA233ResolvePolicy_(risk, readiness, decisions) {
   let executionStatus = 'INFORMATIONAL ONLY';
   if (staleActionable.length) {
     executionStatus = 'BLOCKED — STALE DATA';
+  } else if (qualityBlockedActionable.length) {
+    executionStatus = 'BLOCKED — RECOMMENDATION QUALITY';
   } else if (risk.critical && actionable.length) {
     executionStatus = 'BLOCKED — RISK CAPACITY';
+  } else if (qualityReviewActionable.length) {
+    executionStatus = 'CONDITIONAL';
   } else if (actionable.length) {
     executionStatus =
       readiness.priceFreshnessCoveragePct >= FO_A233_FRESHNESS_THRESHOLD
@@ -267,6 +294,8 @@ function foA233ResolvePolicy_(risk, readiness, decisions) {
     executionStatus: executionStatus,
     actionableCount: actionable.length,
     staleActionableCount: staleActionable.length,
+    qualityBlockedActionableCount: qualityBlockedActionable.length,
+    qualityReviewActionableCount: qualityReviewActionable.length,
     priceReady:
       readiness.priceFreshnessCoveragePct >= FO_A233_FRESHNESS_THRESHOLD,
     costBasisReady:
@@ -288,8 +317,12 @@ function foA233BuildActionCards_(decisions, holdings, policy, risk, run) {
     let executionStatus = 'INFORMATIONAL ONLY';
     if (actionable && item.priceFreshness !== 'FRESH') {
       executionStatus = 'BLOCKED — STALE DATA';
+    } else if (actionable && foA233QualityBlocksExecution_(item)) {
+      executionStatus = 'BLOCKED — RECOMMENDATION QUALITY';
     } else if (actionable && risk.critical) {
       executionStatus = 'BLOCKED — RISK CAPACITY';
+    } else if (actionable && item.contradictionStatus === 'REVIEW') {
+      executionStatus = 'CONDITIONAL';
     } else if (actionable) {
       executionStatus = policy.priceReady ? 'EXECUTABLE' : 'CONDITIONAL';
     } else if (item.action === 'WATCH') {
@@ -304,6 +337,7 @@ function foA233BuildActionCards_(decisions, holdings, policy, risk, run) {
       securityType: securityType,
       account: item.account,
       action: item.action,
+      recommendation: item.recommendation,
       executionStatus: executionStatus,
       trigger: foA233ActionTrigger_(item, executionStatus),
       invalidationCondition:
@@ -320,6 +354,11 @@ function foA233BuildActionCards_(decisions, holdings, policy, risk, run) {
       riskImpact: actionable && risk.critical
         ? 'INCREASES EXPOSURE WHILE PORTFOLIO RISK IS CRITICAL'
         : 'NEUTRAL / MONITOR',
+      recommendationQualityScore: item.recommendationQualityScore,
+      recommendationQualityGrade: item.recommendationQualityGrade,
+      evidenceBalance: item.evidenceBalance,
+      contradictionStatus: item.contradictionStatus,
+      qualityRationale: item.qualityRationale,
       commentary:
         item.executiveReason ||
         item.recommendation ||
@@ -334,6 +373,16 @@ function foA233BuildConflicts_(actionCards, policy, risk, readiness, run) {
   const conflicts = [];
   const deploymentCards = actionCards.filter(function(card) {
     return foA233IsDeploymentAction_(card.action);
+  });
+  const qualityBlockedCards = deploymentCards.filter(function(card) {
+    return (
+      card.contradictionStatus === 'BLOCKED' ||
+      card.recommendationQualityGrade === 'LOW' ||
+      card.recommendationQualityGrade === 'INSUFFICIENT DATA'
+    );
+  });
+  const qualityReviewCards = deploymentCards.filter(function(card) {
+    return card.contradictionStatus === 'REVIEW';
   });
 
   if (risk.critical && deploymentCards.length) {
@@ -370,6 +419,45 @@ function foA233BuildConflicts_(actionCards, policy, risk, readiness, run) {
         ' actionable decisions are not price-fresh.',
       requiredResolution:
         'Refresh prices and Buy Zones before authorizing capital.',
+      platformVersion: run.platformVersion,
+      baseline: run.baseline
+    });
+  }
+
+  if (qualityBlockedCards.length > 0) {
+    conflicts.push({
+      runId: run.runId,
+      timestamp: run.timestamp,
+      conflictCode: 'RECOMMENDATION_QUALITY_BLOCK_WITH_DEPLOYMENT_ACTION',
+      severity: 'CRITICAL',
+      status: 'CONTROLLED — ACTIONS BLOCKED',
+      description:
+        'Deployment actions coexist with blocked or insufficient recommendation quality.',
+      evidence: qualityBlockedCards.map(function(card) {
+        return card.ticker + ' ' + card.recommendationQualityGrade +
+          '/' + card.contradictionStatus;
+      }).join(' | '),
+      requiredResolution:
+        'Resolve recommendation-quality limitations or contradictions before execution.',
+      platformVersion: run.platformVersion,
+      baseline: run.baseline
+    });
+  }
+
+  if (qualityReviewCards.length > 0) {
+    conflicts.push({
+      runId: run.runId,
+      timestamp: run.timestamp,
+      conflictCode: 'RECOMMENDATION_QUALITY_REVIEW_REQUIRED',
+      severity: 'HIGH',
+      status: 'OPEN — CONDITIONAL',
+      description:
+        'Deployment actions contain recommendation-quality contradictions requiring review.',
+      evidence: qualityReviewCards.map(function(card) {
+        return card.ticker + ' ' + card.qualityRationale;
+      }).join(' | '),
+      requiredResolution:
+        'Complete executive review before authorizing the affected actions.',
       platformVersion: run.platformVersion,
       baseline: run.baseline
     });
@@ -445,9 +533,11 @@ function foA233BuildState_(risk, readiness, decisions, policy, conflicts, run) {
     secondaryAction: policy.staleActionableCount
       ? 'Refresh market prices and Buy Zones.'
       : (
-        !policy.costBasisReady
+        policy.qualityBlockedActionableCount
+          ? 'Resolve recommendation-quality blockers before deployment.'
+          : (!policy.costBasisReady
           ? 'Improve cost-basis coverage; keep return suppressed.'
-          : 'Refresh decision inputs before the next report.'
+          : 'Refresh decision inputs before the next report.')
       ),
     marketMateriality: marketMateriality,
     portfolioMateriality: portfolioMateriality,
@@ -610,6 +700,43 @@ function foRunExecutiveDecisionIntegrationValidationA233(expectedRunId) {
         return !(stale && executable);
       });
     }, 'CRITICAL');
+  suite.add('POLICY', 'No executable deployment with blocked quality',
+    function() {
+      return foA233SheetRows_(actionSheet).every(function(card) {
+        const qualityBlocked =
+          foA233Text_(card['Contradiction Status']).toUpperCase() ===
+            'BLOCKED' ||
+          [
+            'LOW',
+            'INSUFFICIENT DATA'
+          ].indexOf(
+            foA233Text_(
+              card['Recommendation Quality Grade']
+            ).toUpperCase()
+          ) >= 0;
+        const executable =
+          foA233Text_(card['Execution Status']).toUpperCase() ===
+          'EXECUTABLE';
+        return !(qualityBlocked && executable);
+      });
+    }, 'CRITICAL');
+  suite.add('LINEAGE', 'Action-card recommendation quality is inherited',
+    function() {
+      return foA233SheetRows_(actionSheet).every(function(card) {
+        const grade = foA233Text_(
+          card['Recommendation Quality Grade']
+        ).toUpperCase();
+        const contradiction = foA233Text_(
+          card['Contradiction Status']
+        ).toUpperCase();
+        return (
+          ['HIGH', 'MEDIUM', 'LOW', 'INSUFFICIENT DATA', 'NOT ASSESSED']
+            .indexOf(grade) >= 0 &&
+          ['CLEAR', 'REVIEW', 'BLOCKED', 'NOT ASSESSED']
+            .indexOf(contradiction) >= 0
+        );
+      });
+    }, 'HIGH');
   suite.add('CLASSIFICATION',
     'Current holdings and opportunities are separated', function() {
       return foA233SheetRows_(actionSheet).every(function(card) {
@@ -816,8 +943,13 @@ function foAppendDecisionSectionA233_(
           card.securityType +
           ' | Trigger: ' + card.trigger +
           ' | Invalidation: ' + card.invalidationCondition +
+          ' | Recommendation ' + card.recommendation +
           ' | Confidence ' + card.confidence +
           ' (' + foA233SignedNumber_(card.confidenceDelta) + ')' +
+          ' | Quality ' + card.recommendationQualityGrade +
+          ' (' + card.recommendationQualityScore + ')' +
+          ' | Contradiction ' + card.contradictionStatus +
+          ' | ' + card.qualityRationale +
           ' | ' + card.commentary
         )
         : (
@@ -859,6 +991,9 @@ function foA233ActionTrigger_(item, executionStatus) {
   if (executionStatus === 'BLOCKED — RISK CAPACITY') {
     return 'Portfolio risk must fall below CRITICAL.';
   }
+  if (executionStatus === 'BLOCKED — RECOMMENDATION QUALITY') {
+    return 'Recommendation quality must be MEDIUM or HIGH with no blocked contradiction.';
+  }
   if (item.targetEntryPrice > 0) {
     return 'Price at or below target ' +
       item.targetEntryPrice + ' with fresh data.';
@@ -873,6 +1008,10 @@ function foA233Invalidation_(item, executionStatus, risk) {
   if (executionStatus === 'BLOCKED — RISK CAPACITY') {
     return 'Do not add exposure while risk is ' +
       risk.riskLevel + '.';
+  }
+  if (executionStatus === 'BLOCKED — RECOMMENDATION QUALITY') {
+    return item.qualityRationale ||
+      'Do not execute until recommendation-quality blockers are resolved.';
   }
   if (item.targetEntryPrice > 0) {
     return 'Invalidate if price moves materially above target.';
@@ -891,6 +1030,20 @@ function foA233IsDeploymentAction_(action) {
     'DEPLOY CAPITAL WITH LIMITS',
     'SELECTIVE ACCUMULATION'
   ].indexOf(foA233Text_(action).toUpperCase()) >= 0;
+}
+
+function foA233QualityBlocksExecution_(item) {
+  const grade = foA233Text_(
+    item && item.recommendationQualityGrade
+  ).toUpperCase();
+  const contradiction = foA233Text_(
+    item && item.contradictionStatus
+  ).toUpperCase();
+  return (
+    contradiction === 'BLOCKED' ||
+    grade === 'LOW' ||
+    grade === 'INSUFFICIENT DATA'
+  );
 }
 
 function foA233LatestRows_(sheet) {
@@ -980,8 +1133,61 @@ function foA233ActionCardRow_(card) {
     card.trend, card.materialityScore, card.portfolioWeight,
     card.priceFreshness, card.currentPrice, card.targetEntryPrice,
     card.riskImpact, card.commentary, card.platformVersion,
-    card.baseline
+    card.baseline, card.recommendation,
+    card.recommendationQualityScore,
+    card.recommendationQualityGrade,
+    card.evidenceBalance,
+    card.contradictionStatus,
+    card.qualityRationale
   ];
+}
+
+function foA233EnsureAdditiveSchema_(dashboard, key) {
+  const schema = foGetSchemaA230(key);
+  let sheet = dashboard.getSheetByName(schema.sheetName);
+  if (!sheet || sheet.getLastRow() === 0) {
+    return foEnsureSheetA230(dashboard, key);
+  }
+
+  const expected = schema.headers.slice();
+  const actual = sheet.getRange(
+    1,
+    1,
+    1,
+    sheet.getLastColumn()
+  ).getDisplayValues()[0].map(foA233Text_);
+
+  if (actual.length > expected.length) {
+    throw new Error(
+      'A2.6.0 additive schema migration found unexpected columns: ' +
+      schema.sheetName
+    );
+  }
+  for (let index = 0; index < actual.length; index++) {
+    if (actual[index] !== expected[index]) {
+      throw new Error(
+        'A2.6.0 additive schema migration found incompatible header at ' +
+        schema.sheetName + ' column ' + (index + 1)
+      );
+    }
+  }
+
+  if (actual.length < expected.length) {
+    if (sheet.getMaxColumns() < expected.length) {
+      sheet.insertColumnsAfter(
+        sheet.getMaxColumns(),
+        expected.length - sheet.getMaxColumns()
+      );
+    }
+    sheet.getRange(
+      1,
+      actual.length + 1,
+      1,
+      expected.length - actual.length
+    ).setValues([expected.slice(actual.length)]);
+  }
+
+  return foEnsureSheetA230(dashboard, key);
 }
 
 function foA233ConflictRow_(conflict) {

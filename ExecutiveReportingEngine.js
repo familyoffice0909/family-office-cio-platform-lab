@@ -1,6 +1,6 @@
 /************************************************************
  * ExecutiveReportingEngine.gs
- * Wave 1C.7 — Executive Reporting Engine
+ * Sprint 2.6.0 — Governed Executive Reporting
  ************************************************************/
 
 function foRunExecutiveReportEngine() {
@@ -10,50 +10,27 @@ function foRunExecutiveReportEngine() {
     foInfo_(module, 'Start', 'Executive Report Engine started.');
 
     const dashboard = foDashboard_();
-    const decisionSheet = dashboard.getSheetByName('CIO Decisions');
-
-    if (!decisionSheet) {
-      throw new Error('CIO Decisions sheet not found. Run CIO Decision Engine first.');
-    }
-
-    const values = decisionSheet.getDataRange().getValues();
-
-    if (values.length < 2) {
-      throw new Error('CIO Decisions has no rows to report.');
-    }
-
-    const headers = values[0].map(String);
-    const decisions = [];
-
-    for (let r = 1; r < values.length; r++) {
-      const row = values[r];
-      const ticker = foGetVal_(row, headers, 'Ticker');
-
-      if (!ticker) continue;
-
-      decisions.push({
-        ticker: ticker,
-        company: foGetVal_(row, headers, 'Company'),
-        account: foGetVal_(row, headers, 'Account'),
-        marketValue: foNum_(foGetVal_(row, headers, 'Market Value')),
-        buyZoneConfidence: foNum_(foGetVal_(row, headers, 'Buy Zone Confidence')),
-        convictionScore: foNum_(foGetVal_(row, headers, 'Conviction Score')),
-        materialityScore: foNum_(foGetVal_(row, headers, 'Materiality Score')),
-        riskRating: foGetVal_(row, headers, 'Risk Rating'),
-        marketRecommendation: foGetVal_(row, headers, 'Market Recommendation'),
-        cioReadiness: foNum_(foGetVal_(row, headers, 'CIO Readiness')),
-        cioAction: foGetVal_(row, headers, 'CIO Action'),
-        priority: foGetVal_(row, headers, 'Priority'),
-        deploymentGuidance: foGetVal_(row, headers, 'Deployment Guidance'),
-        requiresReview: foGetVal_(row, headers, 'Requires Review'),
-        rationale: foGetVal_(row, headers, 'Decision Rationale')
-      });
-    }
-
     const integrationA233 =
       typeof foRunExecutiveDecisionIntegrationA233 === 'function'
         ? foRunExecutiveDecisionIntegrationA233()
         : null;
+
+    if (!integrationA233) {
+      throw new Error(
+        'Executive Decision Integration A233 is unavailable. Run A2.3.3 first.'
+      );
+    }
+
+    const decisions = foReadGovernedExecutiveDecisions_(
+      dashboard,
+      integrationA233
+    );
+
+    if (!decisions.length) {
+      throw new Error(
+        'Investment Decision Support has no governed rows to report.'
+      );
+    }
 
     const reportId = foNowId_('EXEC-RPT');
     const summary = foBuildExecutiveSummary_(decisions);
@@ -102,7 +79,7 @@ function foRunExecutiveReportEngine() {
       summary.totalMarketValue,
       '',
       '',
-      'Based on CIO Decisions market value data.',
+      'Based on Portfolio Performance Positions market value data.',
       reportId,
       FO_CONFIG.PLATFORM_VERSION,
       FO_CONFIG.BASELINE,
@@ -122,12 +99,12 @@ function foRunExecutiveReportEngine() {
       new Date()
     ]);
 
-    foAppendDecisionSectionA233_(rows, 'Deploy Capital', decisions, ['DEPLOY CAPITAL WITH LIMITS'], reportId, integrationA233);
-    foAppendDecisionSectionA233_(rows, 'Buy / Add', decisions, ['BUY / ADD'], reportId, integrationA233);
-    foAppendDecisionSectionA233_(rows, 'Accumulate', decisions, ['ACCUMULATE ON WEAKNESS'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Deploy Capital', decisions, ['DEPLOY NOW'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Buy / Add', decisions, ['BUY'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Accumulate', decisions, ['ACCUMULATE'], reportId, integrationA233);
     foAppendDecisionSectionA233_(rows, 'Hold', decisions, ['HOLD'], reportId, integrationA233);
-    foAppendDecisionSectionA233_(rows, 'Watch / Review', decisions, ['WATCH / REVIEW'], reportId, integrationA233);
-    foAppendDecisionSectionA233_(rows, 'No Action', decisions, ['NO ACTION'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'Watch / Review', decisions, ['WATCH', 'REFRESH DATA'], reportId, integrationA233);
+    foAppendDecisionSectionA233_(rows, 'No Action', decisions, ['AVOID'], reportId, integrationA233);
 
     if (rows.length > 0) {
       output.getRange(2, 1, rows.length, 10).setValues(rows);
@@ -148,6 +125,137 @@ function foRunExecutiveReportEngine() {
     foError_(module, 'Failure', error);
     throw error;
   }
+}
+
+function foReadGovernedExecutiveDecisions_(dashboard, integrationA233) {
+  const decisionSheet = dashboard.getSheetByName(
+    FO_SHEETS.INVESTMENT_DECISION_SUPPORT
+  );
+  if (!decisionSheet || decisionSheet.getLastRow() < 2) return [];
+
+  const values = decisionSheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const marketValues = foExecutiveMarketValueMap_(dashboard);
+  const cards = integrationA233 && integrationA233.actionCards
+    ? integrationA233.actionCards : [];
+
+  return values.slice(1).map(function(row) {
+    const ticker = String(
+      foGetVal_(row, headers, 'Ticker') || ''
+    ).trim().toUpperCase();
+    const account = String(
+      foGetVal_(row, headers, 'Account') || ''
+    ).trim();
+    if (!ticker) return null;
+
+    const card = typeof foA233FindCard_ === 'function'
+      ? foA233FindCard_(cards, ticker, account)
+      : null;
+    const risk = foNum_(foGetVal_(row, headers, 'Risk'));
+    const qualityScore = foNum_(
+      foGetVal_(row, headers, 'Recommendation Quality Score')
+    );
+    const qualityGrade = String(
+      foGetVal_(row, headers, 'Recommendation Quality Grade') ||
+      'NOT ASSESSED'
+    ).trim().toUpperCase();
+    const contradictionStatus = String(
+      foGetVal_(row, headers, 'Contradiction Status') ||
+      'NOT ASSESSED'
+    ).trim().toUpperCase();
+    const materiality = foNum_(
+      foGetVal_(row, headers, 'Materiality Score')
+    );
+    const action = String(
+      foGetVal_(row, headers, 'Action') || ''
+    ).trim().toUpperCase();
+    const qualityRationale = String(
+      foGetVal_(row, headers, 'Quality Rationale') || ''
+    ).trim();
+    const executiveReason = String(
+      foGetVal_(row, headers, 'Executive Reason') || ''
+    ).trim();
+
+    return {
+      ticker: ticker,
+      company: marketValues.companies[ticker] || '',
+      account: account,
+      marketValue: foExecutiveMarketValue_(marketValues, ticker, account),
+      buyZoneConfidence: foNum_(
+        foGetVal_(row, headers, 'Confidence')
+      ),
+      convictionScore: foNum_(
+        foGetVal_(row, headers, 'Conviction')
+      ),
+      materialityScore: materiality,
+      riskRating: risk > 50 ? 'HIGH' : (risk > 35 ? 'MEDIUM' : 'LOW'),
+      marketRecommendation: String(
+        foGetVal_(row, headers, 'Recommendation') || ''
+      ).trim(),
+      cioReadiness: qualityScore,
+      cioAction: action,
+      priority: contradictionStatus === 'BLOCKED' || materiality >= 85
+        ? 'CRITICAL'
+        : (qualityGrade === 'LOW' || qualityGrade === 'INSUFFICIENT DATA'
+          ? 'HIGH'
+          : (materiality >= 70 ? 'HIGH' : 'NORMAL')),
+      deploymentGuidance: card ? card.executionStatus : '',
+      requiresReview:
+        contradictionStatus !== 'CLEAR' ||
+        qualityGrade === 'LOW' ||
+        qualityGrade === 'INSUFFICIENT DATA' ||
+        (card && String(card.executionStatus).indexOf('BLOCKED') === 0)
+          ? 'YES' : 'NO',
+      recommendationQualityScore: qualityScore,
+      recommendationQualityGrade: qualityGrade,
+      evidenceBalance: String(
+        foGetVal_(row, headers, 'Evidence Balance') || 'NOT ASSESSED'
+      ).trim(),
+      contradictionStatus: contradictionStatus,
+      rationale: [qualityRationale, executiveReason]
+        .filter(function(value) { return value; })
+        .join(' | ')
+    };
+  }).filter(function(item) {
+    return item !== null;
+  });
+}
+
+function foExecutiveMarketValueMap_(dashboard) {
+  const sheet = dashboard.getSheetByName('Portfolio Performance Positions');
+  const result = {exact: {}, ticker: {}, companies: {}};
+  if (!sheet || sheet.getLastRow() < 2) return result;
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  values.slice(1).forEach(function(row) {
+    const ticker = String(
+      foGetVal_(row, headers, 'Ticker') || ''
+    ).trim().toUpperCase();
+    const account = String(
+      foGetVal_(row, headers, 'Account') || ''
+    ).trim().toUpperCase();
+    const marketValue = foNum_(
+      foGetVal_(row, headers, 'Market Value')
+    );
+    if (!ticker) return;
+    const key = ticker + '|' + account;
+    result.exact[key] = (result.exact[key] || 0) + marketValue;
+    result.ticker[ticker] = (result.ticker[ticker] || 0) + marketValue;
+    result.companies[ticker] = String(
+      foGetVal_(row, headers, 'Company') || result.companies[ticker] || ''
+    ).trim();
+  });
+  return result;
+}
+
+function foExecutiveMarketValue_(marketValues, ticker, account) {
+  const key = String(ticker || '').trim().toUpperCase() + '|' +
+    String(account || '').trim().toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(marketValues.exact, key)) {
+    return marketValues.exact[key];
+  }
+  return marketValues.ticker[String(ticker || '').trim().toUpperCase()] || 0;
 }
 
 function foBuildExecutiveSummary_(decisions) {
