@@ -528,7 +528,6 @@ function foDecisionTrend_(
 ) {
   let points = 0;
 
-  // Conviction magnitude.
   if (convictionDelta >= 20) {
     points += 3;
   } else if (convictionDelta >= 10) {
@@ -543,7 +542,6 @@ function foDecisionTrend_(
     points -= 1;
   }
 
-  // Risk magnitude. Lower risk is positive; higher risk is negative.
   if (riskDelta <= -20) {
     points += 3;
   } else if (riskDelta <= -10) {
@@ -558,7 +556,6 @@ function foDecisionTrend_(
     points -= 1;
   }
 
-  // Confidence magnitude.
   if (confidenceDelta >= 20) {
     points += 3;
   } else if (confidenceDelta >= 10) {
@@ -573,7 +570,6 @@ function foDecisionTrend_(
     points -= 1;
   }
 
-  // Distance-to-entry magnitude. Moving closer is positive.
   if (distanceDelta <= -0.10) {
     points += 3;
   } else if (distanceDelta <= -0.05) {
@@ -695,8 +691,8 @@ function foLoadDecisionHistory_(dashboard) {
         foDecisionVal_(values[row], headers, 'Distance to Entry %')
       ),
       action: foDecisionVal_(values[row], headers, 'Action'),
-      priceFreshness: signatureParts.length
-        ? signatureParts[signatureParts.length - 1]
+      priceFreshness: signatureParts.length > 8
+        ? signatureParts[8]
         : ''
     };
   }
@@ -754,9 +750,6 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     headers
   );
 
-  sheet.clearContents();
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-
   const now = new Date();
   const rows = decisions.map(function(item, index) {
     return [
@@ -800,48 +793,140 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     ];
   });
 
-  const currentPriceColumn = headers.indexOf('Current Price') + 1;
-  const targetEntryPriceColumn = headers.indexOf('Target Entry Price') + 1;
+  const bodyRowCount = Math.max(rows.length, 1);
 
-  if (currentPriceColumn < 1 || targetEntryPriceColumn < 1) {
-    throw new Error(
-      'Decision-support price columns are missing from the output contract.'
-    );
-  }
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
 
-  // clearContents() preserves cell formatting. Earlier date formatting caused
-  // valid numeric price serials to be returned as JavaScript Date objects.
   sheet.getRange(
     2,
-    currentPriceColumn,
-    Math.max(rows.length, 1),
-    2
-  ).setNumberFormat('#,##0.00');
+    1,
+    bodyRowCount,
+    headers.length
+  ).setNumberFormat('General');
 
   if (rows.length) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
     sheet.getRange(
       2,
-      currentPriceColumn,
+      1,
       rows.length,
-      2
-    ).setNumberFormat('#,##0.00');
+      headers.length
+    ).setValues(rows);
   }
 
+  foApplyDecisionSupportNumberFormats_(
+    sheet,
+    headers,
+    bodyRowCount
+  );
+
   sheet.setFrozenRows(1);
+
   sheet.getRange(1, 1, 1, headers.length)
     .setFontWeight('bold')
     .setBackground('#1f4e78')
     .setFontColor('#ffffff');
-  sheet.getRange(2, 19, Math.max(rows.length, 1), 2)
-    .setNumberFormat('0.00%');
+
   sheet.autoResizeColumns(1, headers.length);
-  sheet.setColumnWidth(10, 440);
-  sheet.setColumnWidth(25, 520);
-  sheet.setColumnWidth(headers.indexOf('Supporting Evidence') + 1, 520);
-  sheet.setColumnWidth(headers.indexOf('Opposing Evidence') + 1, 520);
-  sheet.setColumnWidth(headers.indexOf('Data Limitations') + 1, 420);
-  sheet.setColumnWidth(headers.indexOf('Quality Rationale') + 1, 560);
+
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Materiality Drivers',
+    440
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Executive Reason',
+    520
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Supporting Evidence',
+    520
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Opposing Evidence',
+    520
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Data Limitations',
+    420
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Contradiction Reasons',
+    520
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Quality Rationale',
+    560
+  );
+}
+
+function foApplyDecisionSupportNumberFormats_(sheet, headers, rowCount) {
+  const formats = [
+    { name: 'Rank', format: '0' },
+    { name: 'Materiality Score', format: '0' },
+    { name: 'Priority Score', format: '0' },
+    { name: 'Conviction', format: '0' },
+    { name: 'Conviction Delta', format: '0' },
+    { name: 'Risk', format: '0' },
+    { name: 'Risk Delta', format: '0' },
+    { name: 'Confidence', format: '0' },
+    { name: 'Confidence Delta', format: '0' },
+    { name: 'Recommendation Quality Score', format: '0' },
+    { name: 'Distance to Entry %', format: '0.00%' },
+    { name: 'Distance Delta', format: '0.00%' },
+    { name: 'Current Price', format: '#,##0.00' },
+    { name: 'Target Entry Price', format: '#,##0.00' },
+    { name: 'Timestamp', format: 'yyyy-mm-dd hh:mm:ss' }
+  ];
+
+  formats.forEach(function(definition) {
+    const column = foDecisionSupportColumn_(
+      headers,
+      definition.name
+    );
+
+    sheet.getRange(
+      2,
+      column,
+      rowCount,
+      1
+    ).setNumberFormat(definition.format);
+  });
+}
+
+function foDecisionSupportColumn_(headers, name) {
+  const index = headers.indexOf(name);
+
+  if (index < 0) {
+    throw new Error(
+      'Missing decision-support output column: ' + name
+    );
+  }
+
+  return index + 1;
+}
+
+function foSetDecisionSupportColumnWidth_(
+  sheet,
+  headers,
+  name,
+  width
+) {
+  const column = foDecisionSupportColumn_(headers, name);
+  sheet.setColumnWidth(column, width);
 }
 
 function foAppendDecisionHistory_(dashboard, decisions) {
@@ -1026,6 +1111,7 @@ function foRunInvestmentDecisionSupportSmokeTest() {
   });
 
   foValidateDecisionSupportPriceIntegrityWave321_(sheet, headers);
+  foValidateDecisionSupportNumberFormats_(sheet, headers);
 
   return result;
 }
@@ -1059,13 +1145,19 @@ function foValidateDecisionSupportPriceIntegrityWave321_(sheet, headers) {
       }
 
       if (typeof value === 'number' && (!isFinite(value) || value < 0)) {
-        throw new Error(label + ' contains invalid numeric value at row ' + sheetRow);
+        throw new Error(
+          label + ' contains invalid numeric value at row ' + sheetRow
+        );
       }
 
-      const format = String(numberFormats[rowIndex][columnIndex] || '').toLowerCase();
+      const format = String(
+        numberFormats[rowIndex][columnIndex] || ''
+      ).toLowerCase();
+
       if (format.indexOf('yy') >= 0 || format.indexOf('dd') >= 0) {
         throw new Error(
-          label + ' retains date formatting at row ' + sheetRow + ': ' + format
+          label + ' retains date formatting at row ' +
+          sheetRow + ': ' + format
         );
       }
     });
@@ -1075,5 +1167,136 @@ function foValidateDecisionSupportPriceIntegrityWave321_(sheet, headers) {
     status: 'PASS',
     rowsValidated: rowCount,
     priceColumnsValidated: 2
+  };
+}
+
+function foValidateDecisionSupportNumberFormats_(sheet, headers) {
+  const rowCount = Math.max(sheet.getLastRow() - 1, 0);
+
+  if (!rowCount) {
+    throw new Error(
+      'Investment Decision Support contains no rows for format validation.'
+    );
+  }
+
+  const numericColumns = [
+    'Rank',
+    'Materiality Score',
+    'Priority Score',
+    'Conviction',
+    'Conviction Delta',
+    'Risk',
+    'Risk Delta',
+    'Confidence',
+    'Confidence Delta',
+    'Recommendation Quality Score'
+  ];
+
+  numericColumns.forEach(function(name) {
+    const column = foDecisionSupportColumn_(headers, name);
+    const formats = sheet.getRange(
+      2,
+      column,
+      rowCount,
+      1
+    ).getNumberFormats();
+
+    formats.forEach(function(row, rowIndex) {
+      const format = String(row[0] || '').toLowerCase();
+
+      if (format.indexOf('%') >= 0) {
+        throw new Error(
+          name +
+          ' incorrectly retains percentage formatting at row ' +
+          (rowIndex + 2) +
+          ': ' +
+          format
+        );
+      }
+
+      if (
+        format.indexOf('yy') >= 0 ||
+        format.indexOf('dd') >= 0 ||
+        format.indexOf('hh') >= 0
+      ) {
+        throw new Error(
+          name +
+          ' incorrectly retains date formatting at row ' +
+          (rowIndex + 2) +
+          ': ' +
+          format
+        );
+      }
+    });
+  });
+
+  const percentageColumns = [
+    'Distance to Entry %',
+    'Distance Delta'
+  ];
+
+  percentageColumns.forEach(function(name) {
+    const column = foDecisionSupportColumn_(headers, name);
+    const formats = sheet.getRange(
+      2,
+      column,
+      rowCount,
+      1
+    ).getNumberFormats();
+
+    formats.forEach(function(row, rowIndex) {
+      const format = String(row[0] || '');
+
+      if (format.indexOf('%') < 0) {
+        throw new Error(
+          name +
+          ' is missing percentage formatting at row ' +
+          (rowIndex + 2) +
+          ': ' +
+          format
+        );
+      }
+    });
+  });
+
+  const confidenceColumn = foDecisionSupportColumn_(
+    headers,
+    'Confidence'
+  );
+
+  const confidenceValues = sheet.getRange(
+    2,
+    confidenceColumn,
+    rowCount,
+    1
+  ).getValues();
+
+  confidenceValues.forEach(function(row, rowIndex) {
+    const value = row[0];
+
+    if (
+      value !== '' &&
+      value !== null &&
+      (
+        typeof value !== 'number' ||
+        !isFinite(value) ||
+        value < 0 ||
+        value > 100
+      )
+    ) {
+      throw new Error(
+        'Confidence must be a numeric 0-100 score at row ' +
+        (rowIndex + 2) +
+        ': ' +
+        value
+      );
+    }
+  });
+
+  return {
+    status: 'PASS',
+    rowsValidated: rowCount,
+    numericColumnsValidated: numericColumns.length,
+    percentageColumnsValidated: percentageColumns.length
   };
 }
