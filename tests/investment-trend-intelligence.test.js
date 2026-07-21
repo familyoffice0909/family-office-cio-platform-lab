@@ -52,4 +52,53 @@ describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
     expect(source).toContain("'Overall Trajectory'");
     expect(source).toContain("'Trajectory Rationale'");
   });
+
+  test('keeps blank distance distinct from zero distance', () => {
+    expect(context.foTrendNullableNumber_('')).toBeNull();
+    expect(context.foTrendNullableNumber_(0)).toBe(0);
+
+    const previous = {distancePct: null, zonePosition: 'UNAVAILABLE'};
+    const current = {distancePct: null, zonePosition: 'UNAVAILABLE'};
+
+    expect(
+      context.foEntryDistanceTrend_(previous, current, null)
+    ).toBe('INSUFFICIENT DATA');
+  });
+
+  test('deduplicates same-day observations before bounding history', () => {
+    const result = context.foDeduplicateTrendSeriesByDay_([
+      {timestamp: '2026-07-20T17:00:00Z', marker: 'prior'},
+      {timestamp: '2026-07-21T08:00:00Z', marker: 'first'},
+      {timestamp: '2026-07-21T17:00:00Z', marker: 'latest'}
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(result[1].marker).toBe('latest');
+  });
+
+  test('propagates component reversal into formal reversal status', () => {
+    expect(
+      context.foResolveReversalStatus_(
+        'STABLE',
+        ['STABLE', 'REVERSING DOWNWARD']
+      )
+    ).toBe('REVERSING DOWNWARD');
+  });
+
+  test('counts reversals from formal reversal status', () => {
+    const trends = [
+      {reversalStatus: 'REVERSING UPWARD'},
+      {reversalStatus: 'REVERSING DOWNWARD'},
+      {reversalStatus: 'REVERSING DOWNWARD'},
+      {reversalStatus: 'NONE'}
+    ];
+
+    expect(
+      context.foCountTrendReversals_(trends, 'REVERSING UPWARD')
+    ).toBe(1);
+    expect(
+      context.foCountTrendReversals_(trends, 'REVERSING DOWNWARD')
+    ).toBe(2);
+  });
+
 });

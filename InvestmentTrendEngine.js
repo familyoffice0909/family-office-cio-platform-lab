@@ -148,7 +148,7 @@ function foBuildTrendRecord_(current, previous) {
   const distanceDelta =
     current.distancePct !== null && previousDistance !== null
       ? current.distancePct - previousDistance
-      : 0;
+      : null;
 
   const recommendationTrend = foRecommendationTrend_(
     previousRecommendation,
@@ -269,6 +269,15 @@ function foMaterialityTrend_(delta) {
 }
 
 function foEntryDistanceTrend_(previous, current, delta) {
+  if (
+    !previous ||
+    previous.distancePct === null ||
+    current.distancePct === null ||
+    delta === null
+  ) {
+    return 'INSUFFICIENT DATA';
+  }
+
   if (current.zonePosition === 'IN BUY ZONE') return 'IN BUY ZONE';
   if (current.zonePosition === 'BELOW ZONE') return 'BELOW BUY ZONE';
 
@@ -325,6 +334,10 @@ function foTrendDeltaPoints_(delta, inverse) {
 }
 
 function foTrendDistancePoints_(delta) {
+  if (delta === null || delta === undefined || !isFinite(Number(delta))) {
+    return 0;
+  }
+
   if (delta <= -0.05) return 2;
   if (delta <= -0.02) return 1;
   if (delta >= 0.05) return -2;
@@ -486,7 +499,7 @@ function foWriteInvestmentTrends_(dashboard, trends) {
       item.materialityTrend,
       item.previousDistancePct === null ? '' : item.previousDistancePct,
       item.currentDistancePct === null ? '' : item.currentDistancePct,
-      item.distanceDelta,
+      item.distanceDelta === null ? '' : item.distanceDelta,
       item.entryTrend,
       item.overallTrend,
       item.trendScore,
@@ -665,17 +678,13 @@ function foWriteTrendExecutiveSummary_(dashboard, trends) {
     ],
     [
       'Reversing Upward Securities',
-      trends.filter(function(item) {
-        return item.overallTrajectory === 'REVERSING UPWARD';
-      }).length,
+      foCountTrendReversals_(trends, 'REVERSING UPWARD'),
       '',
       now
     ],
     [
       'Reversing Downward Securities',
-      trends.filter(function(item) {
-        return item.overallTrajectory === 'REVERSING DOWNWARD';
-      }).length,
+      foCountTrendReversals_(trends, 'REVERSING DOWNWARD'),
       '',
       now
     ],
@@ -814,10 +823,12 @@ function foLoadTrendSeries_(dashboard) {
   });
 
   Object.keys(groups).forEach(function(key) {
-    groups[key] = groups[key].sort(function(a, b) {
-      return foTrendTimestampValue_(a.timestamp) -
-        foTrendTimestampValue_(b.timestamp);
-    }).slice(-FO_TREND_MAX_OBSERVATIONS_);
+    groups[key] = foDeduplicateTrendSeriesByDay_(
+      groups[key].sort(function(a, b) {
+        return foTrendTimestampValue_(a.timestamp) -
+          foTrendTimestampValue_(b.timestamp);
+      })
+    ).slice(-FO_TREND_MAX_OBSERVATIONS_);
   });
   return groups;
 }
@@ -850,19 +861,30 @@ function foEnhanceTrendRecord_(record, series) {
     ? qualityValues[qualityValues.length - 1] : null;
   const qualityDelta = previousQuality !== null && currentQuality !== null
     ? currentQuality - previousQuality : 0;
-  const overallTrajectory = foOverallTrajectory_(series);
-  const reversalStatus = overallTrajectory.indexOf('REVERSING') === 0
-    ? overallTrajectory : 'NONE';
+  const componentTrajectories = [
+    recommendationTrajectory,
+    convictionTrajectory,
+    riskTrajectory,
+    confidenceTrajectory,
+    qualityTrajectory
+  ];
+  let overallTrajectory = foOverallTrajectory_(series);
+  const reversalStatus = foResolveReversalStatus_(
+    overallTrajectory,
+    componentTrajectories
+  );
+
+  if (
+    reversalStatus !== 'NONE' &&
+    overallTrajectory.indexOf('REVERSING') !== 0
+  ) {
+    overallTrajectory = reversalStatus;
+  }
+
   const evidenceStrength = foTrendEvidenceStrength_(
     observationCount,
     overallTrajectory,
-    [
-      recommendationTrajectory,
-      convictionTrajectory,
-      riskTrajectory,
-      confidenceTrajectory,
-      qualityTrajectory
-    ]
+    componentTrajectories
   );
 
   record.observationCount = observationCount;
@@ -880,6 +902,52 @@ function foEnhanceTrendRecord_(record, series) {
   record.overallTrajectory = overallTrajectory;
   record.trajectoryRationale = foTrajectoryRationale_(record);
   return record;
+}
+
+
+function foDeduplicateTrendSeriesByDay_(series) {
+  const byDay = {};
+
+  series.forEach(function(item) {
+    const dayKey = foTrendDayKey_(item.timestamp);
+    byDay[dayKey] = item;
+  });
+
+  return Object.keys(byDay).map(function(dayKey) {
+    return byDay[dayKey];
+  }).sort(function(a, b) {
+    return foTrendTimestampValue_(a.timestamp) -
+      foTrendTimestampValue_(b.timestamp);
+  });
+}
+
+function foTrendDayKey_(value) {
+  const timestamp = foTrendTimestampValue_(value);
+  if (!timestamp) return String(value || '');
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function foResolveReversalStatus_(overallTrajectory, components) {
+  if (overallTrajectory.indexOf('REVERSING') === 0) {
+    return overallTrajectory;
+  }
+
+  const upward = components.filter(function(value) {
+    return value === 'REVERSING UPWARD';
+  }).length;
+  const downward = components.filter(function(value) {
+    return value === 'REVERSING DOWNWARD';
+  }).length;
+
+  if (upward > 0 && downward === 0) return 'REVERSING UPWARD';
+  if (downward > 0 && upward === 0) return 'REVERSING DOWNWARD';
+  return 'NONE';
+}
+
+function foCountTrendReversals_(trends, status) {
+  return trends.filter(function(item) {
+    return item.reversalStatus === status;
+  }).length;
 }
 
 function foNumericTrajectory_(values, threshold, inverse) {
