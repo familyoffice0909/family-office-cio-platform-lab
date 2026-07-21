@@ -152,11 +152,11 @@ describe('Sprint 2.6.0 recommendation quality model', () => {
     expect(first.contradictionReasons).toContain('conflicts with action');
   });
 
-  test('decision and history contracts append all quality fields', () => {
+  test('decision and history contracts preserve all quality fields', () => {
     const decisionHeaders = decisionContext.foDecisionSupportHeaders_();
     const historyHeaders = decisionContext.foDecisionHistoryHeaders_();
 
-    expect(decisionHeaders.slice(-9)).toEqual([
+    const qualityHeaders = [
       'Recommendation Quality Score',
       'Recommendation Quality Grade',
       'Supporting Evidence',
@@ -166,10 +166,21 @@ describe('Sprint 2.6.0 recommendation quality model', () => {
       'Contradiction Status',
       'Contradiction Reasons',
       'Quality Rationale'
-    ]);
-    expect(historyHeaders.slice(-9)).toEqual(
-      decisionHeaders.slice(-9)
-    );
+    ];
+
+    const calibrationHeaders = [
+      'Confidence Calibration Score',
+      'Confidence Reliability',
+      'Calibration Sample Size',
+      'Calibration Status',
+      'Calibration Scope',
+      'Confidence Band',
+      'Calibration Rationale'
+    ];
+
+    expect(decisionHeaders.slice(-16, -7)).toEqual(qualityHeaders);
+    expect(decisionHeaders.slice(-7)).toEqual(calibrationHeaders);
+    expect(historyHeaders.slice(-9)).toEqual(qualityHeaders);
   });
 });
 

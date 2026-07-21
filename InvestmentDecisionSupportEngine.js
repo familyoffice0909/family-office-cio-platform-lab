@@ -1010,14 +1010,7 @@ function foAppendDecisionHistory_(dashboard, decisions) {
       item.evidenceBalance,
       item.contradictionStatus,
       item.contradictionReasons,
-      item.qualityRationale,
-      item.confidenceCalibrationScore,
-      item.confidenceReliability,
-      item.calibrationSampleSize,
-      item.calibrationStatus,
-      item.calibrationScope,
-      item.confidenceBand,
-      item.calibrationRationale
+      item.qualityRationale
     ];
   });
 
@@ -1068,14 +1061,7 @@ function foDecisionHistoryHeaders_() {
     'Evidence Balance',
     'Contradiction Status',
     'Contradiction Reasons',
-    'Quality Rationale',
-    'Confidence Calibration Score',
-    'Confidence Reliability',
-    'Calibration Sample Size',
-    'Calibration Status',
-    'Calibration Scope',
-    'Confidence Band',
-    'Calibration Rationale'
+    'Quality Rationale'
   ];
 }
 
