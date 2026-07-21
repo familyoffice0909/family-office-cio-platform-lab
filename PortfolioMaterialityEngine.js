@@ -11,7 +11,11 @@ function foRunPortfolioMaterialityEngine() {
 
     const dashboard = foDashboard_();
     const securityEvents = foReadPortfolioMaterialityEvents_(dashboard);
-    const assessment = foCalculatePortfolioMateriality_(securityEvents);
+    const decisionSupport = foReadPortfolioPriorityDecisions_(dashboard);
+    const assessment = foCalculatePortfolioMateriality_(
+      securityEvents,
+      decisionSupport
+    );
 
     foWritePortfolioMateriality_(dashboard, assessment);
     foAppendPortfolioMaterialityHistory_(dashboard, assessment);
@@ -84,7 +88,31 @@ function foReadPortfolioMaterialityEvents_(dashboard) {
   });
 }
 
-function foCalculatePortfolioMateriality_(events) {
+
+function foReadPortfolioPriorityDecisions_(dashboard) {
+  const sheet = dashboard.getSheetByName(
+    FO_SHEETS.INVESTMENT_DECISION_SUPPORT
+  );
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  return values.slice(1).map(function(row) {
+    return {
+      ticker: String(foPortfolioMaterialityVal_(row, headers, 'Ticker') || '').trim().toUpperCase(),
+      account: String(foPortfolioMaterialityVal_(row, headers, 'Account') || '').trim(),
+      priorityScore: foPortfolioMaterialityNumber_(foPortfolioMaterialityVal_(row, headers, 'Priority Score')),
+      priorityLevel: String(foPortfolioMaterialityVal_(row, headers, 'Priority Level') || '').trim().toUpperCase(),
+      significantChange: String(foPortfolioMaterialityVal_(row, headers, 'Significant Change') || '').trim().toUpperCase(),
+      attentionType: String(foPortfolioMaterialityVal_(row, headers, 'Attention Type') || '').trim().toUpperCase(),
+      overallTrajectory: String(foPortfolioMaterialityVal_(row, headers, 'Overall Trajectory') || '').trim().toUpperCase(),
+      reversalStatus: String(foPortfolioMaterialityVal_(row, headers, 'Reversal Status') || '').trim().toUpperCase(),
+      evidenceStrength: String(foPortfolioMaterialityVal_(row, headers, 'Trend Evidence Strength') || '').trim().toUpperCase()
+    };
+  }).filter(function(item) { return item.ticker; });
+}
+
+function foCalculatePortfolioMateriality_(events, decisions) {
   const sorted = events.slice().sort(function(a, b) {
     return b.score - a.score;
   });
@@ -136,6 +164,31 @@ function foCalculatePortfolioMateriality_(events) {
     return item.score > 0;
   }).slice(0, 5);
 
+  const priorityDecisions = decisions || [];
+  const priorityReviewSecurities = priorityDecisions.filter(function(item) {
+    return item.priorityLevel === 'HIGH' || item.priorityLevel === 'CRITICAL';
+  }).length;
+  const suppressedSecurities = priorityDecisions.filter(function(item) {
+    return item.priorityLevel === 'SUPPRESSED';
+  }).length;
+  const downwardReversals = priorityDecisions.filter(function(item) {
+    return item.reversalStatus === 'REVERSING DOWNWARD';
+  }).length;
+  const opportunitySignals = priorityDecisions.filter(function(item) {
+    return item.attentionType === 'OPPORTUNITY';
+  }).length;
+  const topExecutivePriority = priorityDecisions.reduce(function(maximum, item) {
+    return Math.max(maximum, item.priorityScore || 0);
+  }, 0);
+  const attentionCounts = {};
+  priorityDecisions.forEach(function(item) {
+    if (!item.attentionType || item.attentionType === 'NONE') return;
+    attentionCounts[item.attentionType] = (attentionCounts[item.attentionType] || 0) + 1;
+  });
+  const primaryAttentionType = Object.keys(attentionCounts).sort(function(a, b) {
+    return attentionCounts[b] - attentionCounts[a];
+  })[0] || 'NONE';
+
   return {
     score: score,
     level: level,
@@ -151,6 +204,12 @@ function foCalculatePortfolioMateriality_(events) {
     improvingSecurities: improvingCount,
     deterioratingSecurities: deterioratingCount,
     staleOrMissingPrices: staleCount,
+    priorityReviewSecurities: priorityReviewSecurities,
+    suppressedSecurities: suppressedSecurities,
+    downwardReversals: downwardReversals,
+    opportunitySignals: opportunitySignals,
+    topExecutivePriority: topExecutivePriority,
+    primaryAttentionType: primaryAttentionType,
     recommendedResponse: foPortfolioMaterialityResponse_(
       score,
       staleCount,
@@ -241,6 +300,12 @@ function foPortfolioMaterialityHeaders_() {
     'Improving Securities',
     'Deteriorating Securities',
     'Stale or Missing Prices',
+    'Priority Review Securities',
+    'Suppressed Securities',
+    'Downward Reversals',
+    'Opportunity Signals',
+    'Top Executive Priority',
+    'Primary Attention Type',
     'Recommended CIO Response',
     'Executive Summary',
     'Platform Version',
@@ -276,6 +341,12 @@ function foWritePortfolioMateriality_(dashboard, assessment) {
     assessment.improvingSecurities,
     assessment.deterioratingSecurities,
     assessment.staleOrMissingPrices,
+    assessment.priorityReviewSecurities,
+    assessment.suppressedSecurities,
+    assessment.downwardReversals,
+    assessment.opportunitySignals,
+    assessment.topExecutivePriority,
+    assessment.primaryAttentionType,
     assessment.recommendedResponse,
     assessment.executiveSummary,
     FO_CONFIG.PLATFORM_VERSION,
@@ -321,6 +392,12 @@ function foAppendPortfolioMaterialityHistory_(dashboard, assessment) {
     assessment.improvingSecurities,
     assessment.deterioratingSecurities,
     assessment.staleOrMissingPrices,
+    assessment.priorityReviewSecurities,
+    assessment.suppressedSecurities,
+    assessment.downwardReversals,
+    assessment.opportunitySignals,
+    assessment.topExecutivePriority,
+    assessment.primaryAttentionType,
     assessment.recommendedResponse
   ].join('|');
 
@@ -358,6 +435,12 @@ function foAppendPortfolioMaterialityHistory_(dashboard, assessment) {
     assessment.improvingSecurities,
     assessment.deterioratingSecurities,
     assessment.staleOrMissingPrices,
+    assessment.priorityReviewSecurities,
+    assessment.suppressedSecurities,
+    assessment.downwardReversals,
+    assessment.opportunitySignals,
+    assessment.topExecutivePriority,
+    assessment.primaryAttentionType,
     assessment.recommendedResponse,
     assessment.executiveSummary,
     FO_CONFIG.PLATFORM_VERSION,

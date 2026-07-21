@@ -9,6 +9,27 @@ const source = fs.readFileSync(path.join(root, 'InvestmentTrendEngine.js'), 'utf
 const context = vm.createContext({console});
 vm.runInContext(source, context, {filename: 'InvestmentTrendEngine.js'});
 
+
+function trendObservation(timestamp, recommendation, conviction, risk, confidence, quality) {
+  return {
+    timestamp,
+    ticker: 'QNC',
+    account: 'LIRA',
+    recommendation,
+    zonePosition: 'ABOVE BUY ZONE',
+    conviction,
+    risk,
+    confidence,
+    distancePct: 0.05,
+    materiality: 70,
+    action: recommendation === 'HOLD' ? 'HOLD' : 'BUY',
+    allocationBand: recommendation === 'HOLD' ? '0%' : '1-2%',
+    eventType: 'MATERIAL CHANGE',
+    recommendationQualityScore: quality,
+    recommendationQualityGrade: quality >= 70 ? 'HIGH' : 'LOW'
+  };
+}
+
 describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
   test('detects sustained improvement', () => {
     expect(context.foNumericTrajectory_([60, 67, 74, 82], 5, false))
@@ -99,6 +120,33 @@ describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
     expect(
       context.foCountTrendReversals_(trends, 'REVERSING DOWNWARD')
     ).toBe(2);
+  });
+
+  test('projects current observation without mutating historical series', () => {
+    const historical = [
+      trendObservation('2026-07-18T12:00:00Z', 'BUY', 80, 35, 78, 72),
+      trendObservation('2026-07-19T12:00:00Z', 'BUY', 75, 40, 72, 66)
+    ];
+    const current = trendObservation(
+      '2026-07-20T12:00:00Z', 'HOLD', 60, 55, 55, 48
+    );
+    const result = context.foProjectInvestmentTrajectory_(historical, current);
+
+    expect(historical).toHaveLength(2);
+    expect(result.observationCount).toBe(3);
+    expect(result.currentRecommendation).toBe('HOLD');
+    expect(result.overallTrajectory).not.toBe('INSUFFICIENT HISTORY');
+  });
+
+  test('projected and persisted trajectory calculations are identical', () => {
+    const series = [
+      trendObservation('2026-07-18T12:00:00Z', 'BUY', 80, 35, 78, 72),
+      trendObservation('2026-07-19T12:00:00Z', 'BUY', 75, 40, 72, 66),
+      trendObservation('2026-07-20T12:00:00Z', 'HOLD', 60, 55, 55, 48)
+    ];
+    expect(
+      context.foProjectInvestmentTrajectory_(series.slice(0, -1), series[2])
+    ).toEqual(context.foProjectInvestmentTrajectory_(series, null));
   });
 
 });

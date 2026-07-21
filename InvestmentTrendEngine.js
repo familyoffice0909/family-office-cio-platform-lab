@@ -43,14 +43,57 @@ function foBuildInvestmentTrends_(dashboard) {
   const seriesByKey = foLoadTrendSeries_(dashboard);
 
   return Object.keys(seriesByKey).map(function(key) {
-    const series = seriesByKey[key];
-    const current = series[series.length - 1];
-    const previous = series.length > 1 ? series[series.length - 2] : null;
-    const pairwise = foBuildTrendRecord_(current, previous);
-    return foEnhanceTrendRecord_(pairwise, series);
+    return foProjectInvestmentTrajectory_(seriesByKey[key], null);
+  }).filter(function(item) {
+    return item;
   }).sort(function(a, b) {
     return b.trendScore - a.trendScore;
   });
+}
+
+/**
+ * Projects the newest multi-observation trajectory without writing workbook
+ * state. Sprint 2.9.0 uses this before Decision Support persists the current
+ * observation, keeping projected and persisted trend logic identical.
+ */
+function foProjectInvestmentTrajectory_(historicalSeries, currentObservation) {
+  const series = (historicalSeries || []).slice();
+
+  if (currentObservation) series.push(currentObservation);
+
+  const normalized = foDeduplicateTrendSeriesByDay_(series).slice(
+    -FO_TREND_MAX_OBSERVATIONS_
+  );
+
+  if (!normalized.length) return null;
+
+  const current = normalized[normalized.length - 1];
+  const previous = normalized.length > 1
+    ? normalized[normalized.length - 2]
+    : null;
+  const pairwise = foBuildTrendRecord_(current, previous);
+
+  return foEnhanceTrendRecord_(pairwise, normalized);
+}
+
+function foProjectInvestmentTrajectories_(seriesByKey, currentObservations) {
+  const projected = {};
+  const keys = {};
+
+  Object.keys(seriesByKey || {}).forEach(function(key) { keys[key] = true; });
+  Object.keys(currentObservations || {}).forEach(function(key) {
+    keys[key] = true;
+  });
+
+  Object.keys(keys).forEach(function(key) {
+    const result = foProjectInvestmentTrajectory_(
+      (seriesByKey && seriesByKey[key]) || [],
+      currentObservations && currentObservations[key]
+    );
+    if (result) projected[key] = result;
+  });
+
+  return projected;
 }
 
 function foLoadTrendSnapshots_(dashboard) {
@@ -202,7 +245,7 @@ function foBuildTrendRecord_(current, previous) {
     entryTrend: entryTrend,
     overallTrend: overallTrend,
     trendScore: trendScore,
-    eventType: current.eventType,
+    eventType: foNormalizeTrendEventType_(current, overallTrend),
     executiveComment: foTrendExecutiveComment_({
       ticker: current.ticker,
       recommendationTrend: recommendationTrend,
@@ -215,6 +258,19 @@ function foBuildTrendRecord_(current, previous) {
       hasPrevious: Boolean(previous)
     })
   };
+}
+
+
+function foNormalizeTrendEventType_(current, overallTrend) {
+  const materiality = foTrendNumber_(current && current.materiality, 0);
+  const eventType = String(current && current.eventType || '').trim().toUpperCase();
+  const stable = String(overallTrend || '').trim().toUpperCase() === 'STABLE';
+
+  if (materiality < 40 && stable) return 'DAILY SNAPSHOT';
+  if (eventType === 'MATERIAL CHANGE' && materiality < 40) {
+    return 'DAILY SNAPSHOT';
+  }
+  return eventType || (materiality >= 40 ? 'MATERIAL CHANGE' : 'DAILY SNAPSHOT');
 }
 
 function foRecommendationTrend_(previous, current) {
