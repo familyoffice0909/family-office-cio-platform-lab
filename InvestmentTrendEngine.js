@@ -1,6 +1,6 @@
 /**
  * Investment Trend Intelligence Engine
- * Wave 2.5.1-A — Neutral Trend Summary Fix
+ * Sprint 2.8.0 — Trend Detection Intelligence
  */
 
 function foRunInvestmentTrendIntelligence() {
@@ -40,11 +40,14 @@ function foRunInvestmentTrendIntelligence() {
 }
 
 function foBuildInvestmentTrends_(dashboard) {
-  const snapshots = foLoadTrendSnapshots_(dashboard);
+  const seriesByKey = foLoadTrendSeries_(dashboard);
 
-  return Object.keys(snapshots).map(function(key) {
-    const pair = snapshots[key];
-    return foBuildTrendRecord_(pair.current, pair.previous);
+  return Object.keys(seriesByKey).map(function(key) {
+    const series = seriesByKey[key];
+    const current = series[series.length - 1];
+    const previous = series.length > 1 ? series[series.length - 2] : null;
+    const pairwise = foBuildTrendRecord_(current, previous);
+    return foEnhanceTrendRecord_(pairwise, series);
   }).sort(function(a, b) {
     return b.trendScore - a.trendScore;
   });
@@ -106,7 +109,15 @@ function foTrendHistoryRecord_(row, headers) {
     ),
     action: foTrendVal_(row, headers, 'Action'),
     allocationBand: foTrendVal_(row, headers, 'Allocation Band'),
-    eventType: foTrendVal_(row, headers, 'Event Type')
+    eventType: foTrendVal_(row, headers, 'Event Type'),
+    recommendationQualityScore: foTrendNullableNumber_(
+      foTrendVal_(row, headers, 'Recommendation Quality Score')
+    ),
+    recommendationQualityGrade: foTrendVal_(
+      row,
+      headers,
+      'Recommendation Quality Grade'
+    )
   };
 }
 
@@ -423,7 +434,21 @@ function foWriteInvestmentTrends_(dashboard, trends) {
     'Event Type',
     'Executive Comment',
     'Platform Version',
-    'Baseline'
+    'Baseline',
+    'Observation Count',
+    'Recommendation Trajectory',
+    'Conviction Trajectory',
+    'Risk Trajectory',
+    'Confidence Trajectory',
+    'Previous Recommendation Quality',
+    'Current Recommendation Quality',
+    'Recommendation Quality Delta',
+    'Recommendation Quality Trend',
+    'Recommendation Quality Trajectory',
+    'Reversal Status',
+    'Trend Evidence Strength',
+    'Overall Trajectory',
+    'Trajectory Rationale'
   ];
 
   const sheet = foEnsureSheet_(
@@ -468,7 +493,23 @@ function foWriteInvestmentTrends_(dashboard, trends) {
       item.eventType,
       item.executiveComment,
       FO_CONFIG.PLATFORM_VERSION,
-      FO_CONFIG.BASELINE
+      FO_CONFIG.BASELINE,
+      item.observationCount,
+      item.recommendationTrajectory,
+      item.convictionTrajectory,
+      item.riskTrajectory,
+      item.confidenceTrajectory,
+      item.previousRecommendationQuality === null
+        ? '' : item.previousRecommendationQuality,
+      item.currentRecommendationQuality === null
+        ? '' : item.currentRecommendationQuality,
+      item.recommendationQualityDelta,
+      item.recommendationQualityTrend,
+      item.recommendationQualityTrajectory,
+      item.reversalStatus,
+      item.trendEvidenceStrength,
+      item.overallTrajectory,
+      item.trajectoryRationale
     ];
   });
 
@@ -623,6 +664,30 @@ function foWriteTrendExecutiveSummary_(dashboard, trends) {
       now
     ],
     [
+      'Reversing Upward Securities',
+      trends.filter(function(item) {
+        return item.overallTrajectory === 'REVERSING UPWARD';
+      }).length,
+      '',
+      now
+    ],
+    [
+      'Reversing Downward Securities',
+      trends.filter(function(item) {
+        return item.overallTrajectory === 'REVERSING DOWNWARD';
+      }).length,
+      '',
+      now
+    ],
+    [
+      'Insufficient History Securities',
+      trends.filter(function(item) {
+        return item.overallTrajectory === 'INSUFFICIENT HISTORY';
+      }).length,
+      '',
+      now
+    ],
+    [
       'Portfolio Trend Status',
       portfolioTrendStatus,
       portfolioTrendNarrative,
@@ -726,6 +791,211 @@ function foTrendNullableNumber_(value) {
   return isFinite(number) ? number : null;
 }
 
+
+/** Sprint 2.8.0 bounded multi-observation trajectory layer. */
+const FO_TREND_MAX_OBSERVATIONS_ = 5;
+
+function foLoadTrendSeries_(dashboard) {
+  const sheet = dashboard.getSheetByName(
+    FO_SHEETS.INVESTMENT_DECISION_HISTORY
+  );
+  if (!sheet || sheet.getLastRow() < 2) return {};
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const groups = {};
+
+  values.slice(1).forEach(function(row) {
+    const record = foTrendHistoryRecord_(row, headers);
+    if (!record.ticker) return;
+    const key = foDecisionKey_(record.ticker, record.account);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(record);
+  });
+
+  Object.keys(groups).forEach(function(key) {
+    groups[key] = groups[key].sort(function(a, b) {
+      return foTrendTimestampValue_(a.timestamp) -
+        foTrendTimestampValue_(b.timestamp);
+    }).slice(-FO_TREND_MAX_OBSERVATIONS_);
+  });
+  return groups;
+}
+
+function foEnhanceTrendRecord_(record, series) {
+  const observationCount = series.length;
+  const recommendationTrajectory = foRecommendationTrajectory_(series);
+  const convictionTrajectory = foNumericTrajectory_(
+    series.map(function(item) { return item.conviction; }),
+    5,
+    false
+  );
+  const riskTrajectory = foNumericTrajectory_(
+    series.map(function(item) { return item.risk; }),
+    5,
+    true
+  );
+  const confidenceTrajectory = foNumericTrajectory_(
+    series.map(function(item) { return item.confidence; }),
+    5,
+    false
+  );
+  const qualityValues = series.map(function(item) {
+    return item.recommendationQualityScore;
+  }).filter(function(value) { return value !== null; });
+  const qualityTrajectory = foNumericTrajectory_(qualityValues, 5, false);
+  const previousQuality = qualityValues.length > 1
+    ? qualityValues[qualityValues.length - 2] : null;
+  const currentQuality = qualityValues.length
+    ? qualityValues[qualityValues.length - 1] : null;
+  const qualityDelta = previousQuality !== null && currentQuality !== null
+    ? currentQuality - previousQuality : 0;
+  const overallTrajectory = foOverallTrajectory_(series);
+  const reversalStatus = overallTrajectory.indexOf('REVERSING') === 0
+    ? overallTrajectory : 'NONE';
+  const evidenceStrength = foTrendEvidenceStrength_(
+    observationCount,
+    overallTrajectory,
+    [
+      recommendationTrajectory,
+      convictionTrajectory,
+      riskTrajectory,
+      confidenceTrajectory,
+      qualityTrajectory
+    ]
+  );
+
+  record.observationCount = observationCount;
+  record.recommendationTrajectory = recommendationTrajectory;
+  record.convictionTrajectory = convictionTrajectory;
+  record.riskTrajectory = riskTrajectory;
+  record.confidenceTrajectory = confidenceTrajectory;
+  record.previousRecommendationQuality = previousQuality;
+  record.currentRecommendationQuality = currentQuality;
+  record.recommendationQualityDelta = qualityDelta;
+  record.recommendationQualityTrend = foConfidenceTrend_(qualityDelta);
+  record.recommendationQualityTrajectory = qualityTrajectory;
+  record.reversalStatus = reversalStatus;
+  record.trendEvidenceStrength = evidenceStrength;
+  record.overallTrajectory = overallTrajectory;
+  record.trajectoryRationale = foTrajectoryRationale_(record);
+  return record;
+}
+
+function foNumericTrajectory_(values, threshold, inverse) {
+  const usable = values.filter(function(value) {
+    return value !== null && value !== '' && isFinite(Number(value));
+  }).map(Number);
+  if (usable.length < 2) return 'INSUFFICIENT HISTORY';
+
+  const deltas = [];
+  for (let index = 1; index < usable.length; index += 1) {
+    let delta = usable[index] - usable[index - 1];
+    if (inverse) delta = -delta;
+    deltas.push(delta);
+  }
+  const material = deltas.map(function(delta) {
+    if (delta >= threshold) return 1;
+    if (delta <= -threshold) return -1;
+    return 0;
+  });
+  if (usable.length >= 3) {
+    const prior = material.slice(0, -1).reduce(function(sum, value) {
+      return sum + value;
+    }, 0);
+    const latest = material[material.length - 1];
+    if (prior > 0 && latest < 0) return 'REVERSING DOWNWARD';
+    if (prior < 0 && latest > 0) return 'REVERSING UPWARD';
+  }
+  const positive = material.filter(function(value) { return value > 0; }).length;
+  const negative = material.filter(function(value) { return value < 0; }).length;
+  if (positive > negative && positive >= Math.ceil(material.length / 2)) {
+    return 'IMPROVING';
+  }
+  if (negative > positive && negative >= Math.ceil(material.length / 2)) {
+    return 'WEAKENING';
+  }
+  return 'STABLE';
+}
+
+function foRecommendationTrajectory_(series) {
+  const priority = {
+    'STRONG BUY': 6,
+    BUY: 5,
+    ACCUMULATE: 4,
+    WATCH: 3,
+    HOLD: 2,
+    AVOID: 1
+  };
+  return foNumericTrajectory_(series.map(function(item) {
+    return priority[item.recommendation] || 0;
+  }), 1, false);
+}
+
+function foOverallTrajectory_(series) {
+  if (series.length < 2) return 'INSUFFICIENT HISTORY';
+  const values = series.map(function(item) {
+    const recommendation = {
+      'STRONG BUY': 30,
+      BUY: 25,
+      ACCUMULATE: 20,
+      WATCH: 15,
+      HOLD: 10,
+      AVOID: 5
+    }[item.recommendation] || 0;
+    const quality = item.recommendationQualityScore === null
+      ? 0 : item.recommendationQualityScore / 5;
+    const distance = item.distancePct === null ? 0 : -item.distancePct * 20;
+    return recommendation + item.conviction / 5 - item.risk / 5 +
+      item.confidence / 5 + quality + distance;
+  });
+  const trajectory = foNumericTrajectory_(values, 2, false);
+  if (trajectory === 'IMPROVING') return 'IMPROVING';
+  if (trajectory === 'WEAKENING') return 'WEAKENING';
+  return trajectory;
+}
+
+function foTrendEvidenceStrength_(count, overall, components) {
+  if (count < 2) return 'INSUFFICIENT';
+  if (count === 2) return 'PRELIMINARY';
+  const directional = components.filter(function(value) {
+    return value === 'IMPROVING' || value === 'WEAKENING' ||
+      value.indexOf('REVERSING') === 0;
+  });
+  if (overall.indexOf('REVERSING') === 0) return count >= 4 ? 'HIGH' : 'MODERATE';
+  if (count >= 4 && directional.length >= 3) return 'HIGH';
+  if (directional.length >= 2) return 'MODERATE';
+  return 'LOW';
+}
+
+function foTrajectoryRationale_(record) {
+  if (record.overallTrajectory === 'INSUFFICIENT HISTORY') {
+    return record.ticker + ' has insufficient history for sustained trend detection.';
+  }
+  const drivers = [];
+  [
+    ['recommendation', record.recommendationTrajectory],
+    ['conviction', record.convictionTrajectory],
+    ['risk', record.riskTrajectory],
+    ['confidence', record.confidenceTrajectory],
+    ['recommendation quality', record.recommendationQualityTrajectory]
+  ].forEach(function(item) {
+    if (item[1] !== 'STABLE' && item[1] !== 'INSUFFICIENT HISTORY') {
+      drivers.push(item[0] + ' ' + item[1].toLowerCase());
+    }
+  });
+  return record.ticker + ' is ' + record.overallTrajectory.toLowerCase() +
+    ' across ' + record.observationCount + ' observations' +
+    (drivers.length ? ', supported by ' + drivers.join(', ') : '') +
+    '. Evidence strength: ' + record.trendEvidenceStrength + '.';
+}
+
+function foTrendTimestampValue_(value) {
+  if (value instanceof Date) return value.getTime();
+  const parsed = new Date(value).getTime();
+  return isFinite(parsed) ? parsed : 0;
+}
+
 function foRunInvestmentTrendSmokeTest() {
   const dashboard = foDashboard_();
 
@@ -760,7 +1030,13 @@ function foRunInvestmentTrendSmokeTest() {
     'Confidence Delta',
     'Entry Trend',
     'Overall Trend',
-    'Executive Comment'
+    'Executive Comment',
+    'Observation Count',
+    'Recommendation Quality Trajectory',
+    'Reversal Status',
+    'Trend Evidence Strength',
+    'Overall Trajectory',
+    'Trajectory Rationale'
   ].forEach(function(name) {
     if (headers.indexOf(name) === -1) {
       throw new Error('Missing trend column: ' + name);
