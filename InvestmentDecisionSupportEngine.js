@@ -99,13 +99,31 @@ function foBuildInvestmentDecisionSupport_(dashboard, results) {
   const materialityPolicy = foLoadMaterialityPolicy_(dashboard);
   const confidenceCalibrationIndex = foBuildConfidenceCalibrationIndex_(dashboard);
 
-  const decisions = results.map(function(item) {
+  let decisions = results.map(function(item) {
     return foBuildDecisionRecord_(
       item,
       history,
       materialityPolicy,
       confidenceCalibrationIndex
     );
+  });
+
+  const trendSeries = foLoadTrendSeries_(dashboard);
+  const currentObservations = {};
+
+  decisions.forEach(function(item) {
+    const key = foDecisionKey_(item.ticker, item.account);
+    currentObservations[key] = foDecisionTrendObservation_(item);
+  });
+
+  const projectedTrajectories = foProjectInvestmentTrajectories_(
+    trendSeries,
+    currentObservations
+  );
+
+  decisions = decisions.map(function(item) {
+    const key = foDecisionKey_(item.ticker, item.account);
+    return foApplyExecutivePriority_(item, projectedTrajectories[key] || null);
   }).sort(function(a, b) {
     return b.priorityScore - a.priorityScore;
   });
@@ -174,7 +192,7 @@ function foBuildDecisionRecord_(
     distanceDelta,
     materialityAssessment
   );
-  const priorityScore = foDecisionPriority_(
+  const basePriorityScore = foDecisionPriority_(
     item,
     materialityAssessment.score,
     action
@@ -194,7 +212,18 @@ function foBuildDecisionRecord_(
     materialityLevel: materialityAssessment.level,
     materialityPrimaryDriver: materialityAssessment.primaryDriver,
     materialityDrivers: materialityAssessment.drivers.join(' | '),
-    priorityScore: priorityScore,
+    basePriorityScore: basePriorityScore,
+    priorityScore: basePriorityScore,
+    priorityLevel: foPriorityLevel_(basePriorityScore),
+    significantChange: materialityAssessment.score >= 60 ? 'YES' : 'NO',
+    attentionType: 'MONITOR',
+    priorityDriver: materialityAssessment.primaryDriver,
+    suppressionReason: '',
+    observationCount: 0,
+    overallTrajectory: 'INSUFFICIENT HISTORY',
+    reversalStatus: 'NONE',
+    trendEvidenceStrength: 'INSUFFICIENT',
+    trajectoryRationale: 'Insufficient history for trajectory assessment.',
     trend: trend,
     convictionScore: item.convictionScore,
     convictionDelta: convictionDelta,
@@ -627,6 +656,166 @@ function foDecisionPriority_(item, materialityScore, action) {
   );
 }
 
+function foDecisionTrendObservation_(item) {
+  return {
+    timestamp: new Date(),
+    ticker: item.ticker,
+    account: item.account,
+    recommendation: item.recommendation,
+    zonePosition: item.zonePosition,
+    conviction: item.convictionScore,
+    risk: item.riskScore,
+    confidence: item.confidence,
+    distancePct: item.distancePct,
+    materiality: item.materialityScore,
+    action: item.action,
+    allocationBand: item.allocationBand,
+    eventType: item.significantChange === 'YES'
+      ? 'MATERIAL CHANGE'
+      : 'DAILY SNAPSHOT',
+    recommendationQualityScore: item.recommendationQualityScore,
+    recommendationQualityGrade: item.recommendationQualityGrade
+  };
+}
+
+function foApplyExecutivePriority_(item, trajectory) {
+  const enriched = item;
+  const overall = trajectory
+    ? trajectory.overallTrajectory
+    : 'INSUFFICIENT HISTORY';
+  const evidence = trajectory
+    ? trajectory.trendEvidenceStrength
+    : 'INSUFFICIENT';
+  const reversal = trajectory ? trajectory.reversalStatus : 'NONE';
+  const trajectoryUrgency = foTrajectoryUrgency_(overall);
+  const evidenceMultiplier = foTrajectoryEvidenceMultiplier_(evidence);
+  const impact = foDecisionImpactUrgency_(item, overall, evidence);
+  const reliability = foDecisionReliabilityScore_(item);
+  let score = Math.round(
+    item.basePriorityScore * 0.50 +
+    trajectoryUrgency * evidenceMultiplier * 0.25 +
+    impact * 0.15 +
+    reliability * 0.10
+  );
+
+  const deployable = foDecisionIsDeployableAction_(item.action);
+  const blocked = item.contradictionStatus === 'BLOCKED';
+  const strongEvidence = evidence === 'MEDIUM' || evidence === 'HIGH';
+  const downward = overall === 'REVERSING DOWNWARD' ||
+    overall === 'WEAKENING' || overall === 'DETERIORATING';
+
+  if (downward && strongEvidence) score = Math.max(score, 70);
+  if (item.materialityLevel === 'CRITICAL' && blocked) score = Math.max(score, 85);
+  if (deployable && blocked) score = Math.max(score, 70);
+
+  enriched.priorityScore = foDecisionClamp_(score, 0, 100);
+  enriched.priorityLevel = foPriorityLevel_(enriched.priorityScore);
+  enriched.observationCount = trajectory ? trajectory.observationCount : 0;
+  enriched.overallTrajectory = overall;
+  enriched.reversalStatus = reversal;
+  enriched.trendEvidenceStrength = evidence;
+  enriched.trajectoryRationale = trajectory
+    ? trajectory.trajectoryRationale
+    : 'Insufficient history for trajectory assessment.';
+  enriched.attentionType = foDecisionAttentionType_(
+    item,
+    overall,
+    evidence
+  );
+  enriched.priorityDriver = foDecisionPriorityDriver_(
+    item,
+    overall,
+    evidence
+  );
+
+  const suppress = item.materialityScore < 40 &&
+    overall === 'STABLE' &&
+    !blocked &&
+    !deployable;
+  if (suppress) {
+    enriched.priorityScore = Math.min(enriched.priorityScore, 29);
+    enriched.priorityLevel = 'SUPPRESSED';
+    enriched.attentionType = 'NONE';
+    enriched.suppressionReason = 'Stable, immaterial and non-actionable.';
+  }
+
+  return enriched;
+}
+
+function foTrajectoryUrgency_(overall) {
+  const weights = {
+    'REVERSING DOWNWARD': 100,
+    DETERIORATING: 80,
+    WEAKENING: 80,
+    'REVERSING UPWARD': 75,
+    IMPROVING: 60,
+    STABLE: 10,
+    'INSUFFICIENT HISTORY': 0
+  };
+  return weights[String(overall || '').toUpperCase()] || 0;
+}
+
+function foTrajectoryEvidenceMultiplier_(evidence) {
+  const weights = {
+    HIGH: 1,
+    MEDIUM: 0.70,
+    PRELIMINARY: 0.35,
+    LOW: 0.35,
+    INSUFFICIENT: 0
+  };
+  return weights[String(evidence || '').toUpperCase()] || 0;
+}
+
+function foDecisionImpactUrgency_(item, overall, evidence) {
+  const deployable = foDecisionIsDeployableAction_(item.action);
+  if (deployable && item.contradictionStatus === 'BLOCKED') return 100;
+  if (deployable && item.recommendationQualityGrade === 'HIGH') return 85;
+  if (item.action === 'REFRESH DATA') return item.materialityScore >= 60 ? 75 : 10;
+  if (overall === 'REVERSING DOWNWARD' && evidence !== 'INSUFFICIENT') return 85;
+  if (item.materialityScore >= 60) return 70;
+  return 30;
+}
+
+function foDecisionReliabilityScore_(item) {
+  if (item.calibrationStatus === 'CALIBRATED') {
+    return foDecisionClamp_(item.confidenceCalibrationScore, 0, 100);
+  }
+  return foDecisionClamp_(item.confidence, 0, 100);
+}
+
+function foPriorityLevel_(score) {
+  if (score >= 85) return 'CRITICAL';
+  if (score >= 70) return 'HIGH';
+  if (score >= 50) return 'MEDIUM';
+  if (score >= 30) return 'LOW';
+  return 'SUPPRESSED';
+}
+
+function foDecisionAttentionType_(item, overall, evidence) {
+  if (item.action === 'REFRESH DATA') return 'DATA';
+  if (item.contradictionStatus === 'BLOCKED') return 'CONTROL';
+  if (
+    overall === 'REVERSING DOWNWARD' ||
+    overall === 'WEAKENING' ||
+    overall === 'DETERIORATING'
+  ) return evidence === 'INSUFFICIENT' ? 'MONITOR' : 'RISK';
+  if (
+    foDecisionIsDeployableAction_(item.action) &&
+    (overall === 'IMPROVING' || overall === 'REVERSING UPWARD')
+  ) return 'OPPORTUNITY';
+  return 'MONITOR';
+}
+
+function foDecisionPriorityDriver_(item, overall, evidence) {
+  if (item.contradictionStatus === 'BLOCKED') {
+    return 'EXECUTION BLOCK: ' + item.contradictionReasons;
+  }
+  if (overall !== 'STABLE' && overall !== 'INSUFFICIENT HISTORY') {
+    return overall + ' (' + evidence + ' EVIDENCE)';
+  }
+  return item.materialityPrimaryDriver || 'ROUTINE MONITORING';
+}
+
 function foDecisionExecutiveReason_(
   item,
   trend,
@@ -730,7 +919,18 @@ function foDecisionSupportHeaders_() {
     'Materiality Level',
     'Materiality Primary Driver',
     'Materiality Drivers',
+    'Base Priority Score',
     'Priority Score',
+    'Priority Level',
+    'Significant Change',
+    'Attention Type',
+    'Priority Driver',
+    'Suppression Reason',
+    'Observation Count',
+    'Overall Trajectory',
+    'Reversal Status',
+    'Trend Evidence Strength',
+    'Trajectory Rationale',
     'Trend',
     'Conviction',
     'Conviction Delta',
@@ -788,7 +988,18 @@ function foWriteDecisionSupport_(dashboard, decisions) {
       item.materialityLevel,
       item.materialityPrimaryDriver,
       item.materialityDrivers,
+      item.basePriorityScore,
       item.priorityScore,
+      item.priorityLevel,
+      item.significantChange,
+      item.attentionType,
+      item.priorityDriver,
+      item.suppressionReason,
+      item.observationCount,
+      item.overallTrajectory,
+      item.reversalStatus,
+      item.trendEvidenceStrength,
+      item.trajectoryRationale,
       item.trend,
       item.convictionScore,
       item.convictionDelta,
@@ -909,13 +1120,27 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     'Calibration Rationale',
     560
   );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Priority Driver',
+    420
+  );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Trajectory Rationale',
+    560
+  );
 }
 
 function foApplyDecisionSupportNumberFormats_(sheet, headers, rowCount) {
   const formats = [
     { name: 'Rank', format: '0' },
     { name: 'Materiality Score', format: '0' },
+    { name: 'Base Priority Score', format: '0' },
     { name: 'Priority Score', format: '0' },
+    { name: 'Observation Count', format: '0' },
     { name: 'Conviction', format: '0' },
     { name: 'Conviction Delta', format: '0' },
     { name: 'Risk', format: '0' },
