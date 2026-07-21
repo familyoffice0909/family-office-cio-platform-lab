@@ -46,6 +46,20 @@ describe('Sprint 2.9.0 materiality and prioritization intelligence', () => {
     expect(result.priorityScore).toBeLessThanOrEqual(29);
   });
 
+  test('explains suppression when data refresh is operationally required', () => {
+    const result = context.foApplyExecutivePriority_(decision({
+      action: 'REFRESH DATA',
+      contradictionStatus: 'BLOCKED',
+      contradictionReasons: 'Essential price data is missing or stale',
+      basePriorityScore: 30,
+      confidence: 45
+    }), trajectory({trendEvidenceStrength: 'LOW'}));
+
+    expect(result.priorityLevel).toBe('SUPPRESSED');
+    expect(result.attentionType).toBe('DATA');
+    expect(result.suppressionReason).toMatch(/data refresh/i);
+  });
+
   test('elevates medium-evidence downward reversal to high', () => {
     const result = context.foApplyExecutivePriority_(
       decision({materialityScore: 65, materialityLevel: 'HIGH'}),

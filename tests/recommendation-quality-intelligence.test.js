@@ -73,6 +73,41 @@ describe('Sprint 2.6.0 recommendation quality model', () => {
     );
   });
 
+  test('missing market data cannot create false near-target evidence', () => {
+    const item = baseItem({
+      currentPrice: 0,
+      targetEntryPrice: 0,
+      distancePct: 0,
+      zonePosition: 'UNAVAILABLE',
+      priceFreshness: 'MISSING',
+      convictionScore: 25,
+      riskScore: 56,
+      confidence: 0,
+      recommendation: 'HOLD'
+    });
+
+    const result = assess(decisionContext, item, {
+      action: 'REFRESH DATA',
+      allocationBand: '0%',
+      trend: 'STABLE',
+      convictionDelta: 0,
+      riskDelta: 0,
+      confidenceDelta: 0,
+      distanceDelta: 0,
+      materialityAssessment: {score: 0, level: 'IMMATERIAL'}
+    });
+
+    expect(result.supportingEvidence).not.toContain(
+      'Price is near the target entry'
+    );
+    expect(result.dataLimitations).toContain('Missing current price');
+    expect(result.dataLimitations).toContain('Target entry is unavailable');
+    expect(result.dataLimitations).toContain(
+      'Distance to target is unavailable'
+    );
+    expect(result.contradictionStatus).toBe('BLOCKED');
+  });
+
   test('mixed but usable recommendation is graded medium', () => {
     const item = baseItem({
       currentPrice: 109,
@@ -321,7 +356,7 @@ describe('Sprint 2.6.0 downstream governance', () => {
       qualityRationale: 'High quality'
     });
 
-    expect(row).toHaveLength(29);
+    expect(row).toHaveLength(39);
   });
 });
 

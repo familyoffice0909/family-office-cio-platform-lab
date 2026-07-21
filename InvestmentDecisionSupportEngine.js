@@ -361,11 +361,21 @@ function foAssessRecommendationQuality_(
     limitations.push('Zone position is unavailable');
   }
 
-  if (item.distancePct !== null && item.distancePct !== undefined) {
+  const hasUsableEntryDistance =
+    currentPrice > 0 &&
+    targetPrice > 0 &&
+    freshness !== 'MISSING' &&
+    zone !== 'UNAVAILABLE' &&
+    item.distancePct !== null &&
+    item.distancePct !== undefined &&
+    Number.isFinite(Number(item.distancePct));
+
+  if (hasUsableEntryDistance) {
     dataReadiness += 2;
-    if (Math.abs(Number(item.distancePct) || 0) <= 0.05) {
+    const distancePct = Number(item.distancePct);
+    if (Math.abs(distancePct) <= 0.05) {
       supporting.push('Price is near the target entry');
-    } else if ((Number(item.distancePct) || 0) > 0.10) {
+    } else if (distancePct > 0.10) {
       opposing.push('Price is materially above target entry');
     }
   } else {
@@ -737,6 +747,22 @@ function foApplyExecutivePriority_(item, trajectory) {
     enriched.priorityLevel = 'SUPPRESSED';
     enriched.attentionType = 'NONE';
     enriched.suppressionReason = 'Stable, immaterial and non-actionable.';
+  }
+
+  if (
+    enriched.priorityLevel === 'SUPPRESSED' &&
+    !String(enriched.suppressionReason || '').trim()
+  ) {
+    if (item.action === 'REFRESH DATA') {
+      enriched.suppressionReason =
+        'No material investment change; data refresh remains operationally required.';
+    } else if (overall === 'STABLE' && item.materialityScore < 40) {
+      enriched.suppressionReason =
+        'Stable trajectory with no material change and low evidence strength.';
+    } else {
+      enriched.suppressionReason =
+        'Executive priority remains below the governed review threshold.';
+    }
   }
 
   return enriched;

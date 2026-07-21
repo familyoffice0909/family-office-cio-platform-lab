@@ -245,7 +245,7 @@ function foBuildTrendRecord_(current, previous) {
     entryTrend: entryTrend,
     overallTrend: overallTrend,
     trendScore: trendScore,
-    eventType: current.eventType,
+    eventType: foNormalizeTrendEventType_(current, overallTrend),
     executiveComment: foTrendExecutiveComment_({
       ticker: current.ticker,
       recommendationTrend: recommendationTrend,
@@ -258,6 +258,19 @@ function foBuildTrendRecord_(current, previous) {
       hasPrevious: Boolean(previous)
     })
   };
+}
+
+
+function foNormalizeTrendEventType_(current, overallTrend) {
+  const materiality = foTrendNumber_(current && current.materiality, 0);
+  const eventType = String(current && current.eventType || '').trim().toUpperCase();
+  const stable = String(overallTrend || '').trim().toUpperCase() === 'STABLE';
+
+  if (materiality < 40 && stable) return 'DAILY SNAPSHOT';
+  if (eventType === 'MATERIAL CHANGE' && materiality < 40) {
+    return 'DAILY SNAPSHOT';
+  }
+  return eventType || (materiality >= 40 ? 'MATERIAL CHANGE' : 'DAILY SNAPSHOT');
 }
 
 function foRecommendationTrend_(previous, current) {

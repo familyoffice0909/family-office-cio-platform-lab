@@ -198,7 +198,16 @@ function foA233ReadDecisionSupport_(dashboard) {
       allocationBand: foA233Text_(row['Allocation Band']),
       materialityScore: foA233Number_(row['Materiality Score']),
       materialityLevel: foA233Text_(row['Materiality Level']),
+      basePriorityScore: foA233Number_(row['Base Priority Score']),
       priorityScore: foA233Number_(row['Priority Score']),
+      priorityLevel: foA233Text_(row['Priority Level']).toUpperCase(),
+      significantChange: foA233Text_(row['Significant Change']).toUpperCase(),
+      attentionType: foA233Text_(row['Attention Type']).toUpperCase(),
+      priorityDriver: foA233Text_(row['Priority Driver']),
+      suppressionReason: foA233Text_(row['Suppression Reason']),
+      overallTrajectory: foA233Text_(row['Overall Trajectory']).toUpperCase(),
+      reversalStatus: foA233Text_(row['Reversal Status']).toUpperCase(),
+      trendEvidenceStrength: foA233Text_(row['Trend Evidence Strength']).toUpperCase(),
       trend: foA233Text_(row.Trend).toUpperCase(),
       confidence: foA233Number_(row.Confidence),
       confidenceDelta: foA233Number_(row['Confidence Delta']),
@@ -347,6 +356,16 @@ function foA233BuildActionCards_(decisions, holdings, policy, risk, run) {
       confidenceDelta: item.confidenceDelta,
       trend: item.trend,
       materialityScore: item.materialityScore,
+      basePriorityScore: item.basePriorityScore,
+      executivePriorityScore: item.priorityScore,
+      priorityLevel: item.priorityLevel,
+      significantChange: item.significantChange,
+      attentionType: item.attentionType,
+      priorityDriver: item.priorityDriver,
+      suppressionReason: item.suppressionReason,
+      overallTrajectory: item.overallTrajectory,
+      reversalStatus: item.reversalStatus,
+      trendEvidenceStrength: item.trendEvidenceStrength,
       portfolioWeight: item.portfolioWeight,
       priceFreshness: item.priceFreshness,
       currentPrice: item.currentPrice,
@@ -985,6 +1004,10 @@ function foA233FindCard_(cards, ticker, account) {
 }
 
 function foA233ActionTrigger_(item, executionStatus) {
+  if (item.priceFreshness !== 'FRESH') {
+    return 'Price data is ' + (item.priceFreshness || 'UNAVAILABLE') +
+      '. Refresh market data before evaluating the entry target.';
+  }
   if (executionStatus === 'BLOCKED — STALE DATA') {
     return 'Fresh market price and refreshed Buy Zone required.';
   }
@@ -1138,7 +1161,17 @@ function foA233ActionCardRow_(card) {
     card.recommendationQualityGrade,
     card.evidenceBalance,
     card.contradictionStatus,
-    card.qualityRationale
+    card.qualityRationale,
+    card.basePriorityScore,
+    card.executivePriorityScore,
+    card.priorityLevel,
+    card.significantChange,
+    card.attentionType,
+    card.overallTrajectory,
+    card.reversalStatus,
+    card.trendEvidenceStrength,
+    card.priorityDriver,
+    card.suppressionReason
   ];
 }
 
