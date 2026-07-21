@@ -5,12 +5,23 @@ const path = require('path');
 const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'InvestmentTrendEngine.js'), 'utf8');
+const source = fs.readFileSync(
+  path.join(root, 'InvestmentTrendEngine.js'),
+  'utf8'
+);
 const context = vm.createContext({console});
-vm.runInContext(source, context, {filename: 'InvestmentTrendEngine.js'});
+vm.runInContext(source, context, {
+  filename: 'InvestmentTrendEngine.js'
+});
 
-
-function trendObservation(timestamp, recommendation, conviction, risk, confidence, quality) {
+function trendObservation(
+  timestamp,
+  recommendation,
+  conviction,
+  risk,
+  confidence,
+  quality
+) {
   return {
     timestamp,
     ticker: 'QNC',
@@ -32,28 +43,33 @@ function trendObservation(timestamp, recommendation, conviction, risk, confidenc
 
 describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
   test('detects sustained improvement', () => {
-    expect(context.foNumericTrajectory_([60, 67, 74, 82], 5, false))
-      .toBe('IMPROVING');
+    expect(
+      context.foNumericTrajectory_([60, 67, 74, 82], 5, false)
+    ).toBe('IMPROVING');
   });
 
   test('interprets falling risk as improvement', () => {
-    expect(context.foNumericTrajectory_([55, 48, 40], 5, true))
-      .toBe('IMPROVING');
+    expect(
+      context.foNumericTrajectory_([55, 48, 40], 5, true)
+    ).toBe('IMPROVING');
   });
 
   test('detects downward reversal', () => {
-    expect(context.foNumericTrajectory_([60, 70, 80, 70], 5, false))
-      .toBe('REVERSING DOWNWARD');
+    expect(
+      context.foNumericTrajectory_([60, 70, 80, 70], 5, false)
+    ).toBe('REVERSING DOWNWARD');
   });
 
   test('detects upward reversal', () => {
-    expect(context.foNumericTrajectory_([80, 70, 60, 70], 5, false))
-      .toBe('REVERSING UPWARD');
+    expect(
+      context.foNumericTrajectory_([80, 70, 60, 70], 5, false)
+    ).toBe('REVERSING UPWARD');
   });
 
   test('does not claim trajectory from one observation', () => {
-    expect(context.foNumericTrajectory_([80], 5, false))
-      .toBe('INSUFFICIENT HISTORY');
+    expect(
+      context.foNumericTrajectory_([80], 5, false)
+    ).toBe('INSUFFICIENT HISTORY');
   });
 
   test('preserves bounded history contract', () => {
@@ -78,8 +94,14 @@ describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
     expect(context.foTrendNullableNumber_('')).toBeNull();
     expect(context.foTrendNullableNumber_(0)).toBe(0);
 
-    const previous = {distancePct: null, zonePosition: 'UNAVAILABLE'};
-    const current = {distancePct: null, zonePosition: 'UNAVAILABLE'};
+    const previous = {
+      distancePct: null,
+      zonePosition: 'UNAVAILABLE'
+    };
+    const current = {
+      distancePct: null,
+      zonePosition: 'UNAVAILABLE'
+    };
 
     expect(
       context.foEntryDistanceTrend_(previous, current, null)
@@ -88,9 +110,18 @@ describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
 
   test('deduplicates same-day observations before bounding history', () => {
     const result = context.foDeduplicateTrendSeriesByDay_([
-      {timestamp: '2026-07-20T17:00:00Z', marker: 'prior'},
-      {timestamp: '2026-07-21T08:00:00Z', marker: 'first'},
-      {timestamp: '2026-07-21T17:00:00Z', marker: 'latest'}
+      {
+        timestamp: '2026-07-20T17:00:00Z',
+        marker: 'prior'
+      },
+      {
+        timestamp: '2026-07-21T08:00:00Z',
+        marker: 'first'
+      },
+      {
+        timestamp: '2026-07-21T17:00:00Z',
+        marker: 'latest'
+      }
     ]);
 
     expect(result).toHaveLength(2);
@@ -115,38 +146,102 @@ describe('Sprint 2.8.0 Trend Detection Intelligence', () => {
     ];
 
     expect(
-      context.foCountTrendReversals_(trends, 'REVERSING UPWARD')
+      context.foCountTrendReversals_(
+        trends,
+        'REVERSING UPWARD'
+      )
     ).toBe(1);
+
     expect(
-      context.foCountTrendReversals_(trends, 'REVERSING DOWNWARD')
+      context.foCountTrendReversals_(
+        trends,
+        'REVERSING DOWNWARD'
+      )
     ).toBe(2);
   });
 
-  test('projects current observation without mutating historical series', () => {
-    const historical = [
-      trendObservation('2026-07-18T12:00:00Z', 'BUY', 80, 35, 78, 72),
-      trendObservation('2026-07-19T12:00:00Z', 'BUY', 75, 40, 72, 66)
-    ];
-    const current = trendObservation(
-      '2026-07-20T12:00:00Z', 'HOLD', 60, 55, 55, 48
-    );
-    const result = context.foProjectInvestmentTrajectory_(historical, current);
+  test(
+    'projects current observation without mutating historical series',
+    () => {
+      const historical = [
+        trendObservation(
+          '2026-07-18T12:00:00Z',
+          'BUY',
+          80,
+          35,
+          78,
+          72
+        ),
+        trendObservation(
+          '2026-07-19T12:00:00Z',
+          'BUY',
+          75,
+          40,
+          72,
+          66
+        )
+      ];
 
-    expect(historical).toHaveLength(2);
-    expect(result.observationCount).toBe(3);
-    expect(result.currentRecommendation).toBe('HOLD');
-    expect(result.overallTrajectory).not.toBe('INSUFFICIENT HISTORY');
-  });
+      const current = trendObservation(
+        '2026-07-20T12:00:00Z',
+        'HOLD',
+        60,
+        55,
+        55,
+        48
+      );
 
-  test('projected and persisted trajectory calculations are identical', () => {
-    const series = [
-      trendObservation('2026-07-18T12:00:00Z', 'BUY', 80, 35, 78, 72),
-      trendObservation('2026-07-19T12:00:00Z', 'BUY', 75, 40, 72, 66),
-      trendObservation('2026-07-20T12:00:00Z', 'HOLD', 60, 55, 55, 48)
-    ];
-    expect(
-      context.foProjectInvestmentTrajectory_(series.slice(0, -1), series[2])
-    ).toEqual(context.foProjectInvestmentTrajectory_(series, null));
-  });
+      const result = context.foProjectInvestmentTrajectory_(
+        historical,
+        current
+      );
 
+      expect(historical).toHaveLength(2);
+      expect(result.observationCount).toBe(3);
+      expect(result.currentRecommendation).toBe('HOLD');
+      expect(result.overallTrajectory)
+        .not.toBe('INSUFFICIENT HISTORY');
+    }
+  );
+
+  test(
+    'projected and persisted trajectory calculations are identical',
+    () => {
+      const series = [
+        trendObservation(
+          '2026-07-18T12:00:00Z',
+          'BUY',
+          80,
+          35,
+          78,
+          72
+        ),
+        trendObservation(
+          '2026-07-19T12:00:00Z',
+          'BUY',
+          75,
+          40,
+          72,
+          66
+        ),
+        trendObservation(
+          '2026-07-20T12:00:00Z',
+          'HOLD',
+          60,
+          55,
+          55,
+          48
+        )
+      ];
+
+      expect(
+        context.foProjectInvestmentTrajectory_(
+          series.slice(0, -1),
+          series[2]
+        )
+      ).toEqual(
+        context.foProjectInvestmentTrajectory_(series, null)
+      );
+    }
+  );
 });

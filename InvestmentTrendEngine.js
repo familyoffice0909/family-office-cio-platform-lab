@@ -42,13 +42,16 @@ function foRunInvestmentTrendIntelligence() {
 function foBuildInvestmentTrends_(dashboard) {
   const seriesByKey = foLoadTrendSeries_(dashboard);
 
-  return Object.keys(seriesByKey).map(function(key) {
-    return foProjectInvestmentTrajectory_(seriesByKey[key], null);
-  }).filter(function(item) {
-    return item;
-  }).sort(function(a, b) {
-    return b.trendScore - a.trendScore;
-  });
+  return Object.keys(seriesByKey)
+    .map(function(key) {
+      return foProjectInvestmentTrajectory_(seriesByKey[key], null);
+    })
+    .filter(function(item) {
+      return item;
+    })
+    .sort(function(a, b) {
+      return b.trendScore - a.trendScore;
+    });
 }
 
 /**

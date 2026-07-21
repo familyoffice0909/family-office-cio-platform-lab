@@ -25,6 +25,7 @@ describe('Wave A2.4.0 static integration', () => {
   test('A2.4.0 worksheets are registered', () => {
     const config = read('Config.js');
     const schemas = read('WorksheetSchemaRegistryA230.js');
+
     expect(config).toContain('WEEKLY_CIO_REPORT_A240');
     expect(config).toContain('WEEKLY_CIO_REPORT_ARCHIVE_A240');
     expect(config).toContain('WEEKLY_CIO_REPORT_VALIDATION_A240');
@@ -40,6 +41,7 @@ describe('Wave A2.4.0 static integration', () => {
   test('released platform metadata is reconciled to v1.3.0 and CB-002', () => {
     const config = read('Config.js');
     const packageJson = JSON.parse(read('package.json'));
+
     expect(config).toContain("PLATFORM_VERSION: 'v1.3.0'");
     expect(config).toContain("BASELINE: 'CB-002'");
     expect(packageJson.version).toBe('1.3.0');
@@ -47,6 +49,7 @@ describe('Wave A2.4.0 static integration', () => {
 
   test('Sprint 2.5.0 executive change detection reuses archive comparisons', () => {
     const source = read('WeeklyCioReportA240.js');
+
     expect(source).toContain("WHAT'S NEW");
     expect(source).toContain('function foA240WhatsNew_(');
     expect(source).toContain('foA240ChangeText_(');
@@ -57,6 +60,7 @@ describe('Wave A2.4.0 static integration', () => {
 
   test('A2.4.0.2 percentage and executive-rounding controls remain present', () => {
     const source = read('WeeklyCioReportA240.js');
+
     expect(source).toContain('A2.4.0.2 Percentage Unit Normalization');
     expect(source).toContain('Portfolio weights total approximately 100 percent');
     expect(source).toContain('Report contains no implausible portfolio percentages');
