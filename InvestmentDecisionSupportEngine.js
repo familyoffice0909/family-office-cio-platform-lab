@@ -97,12 +97,14 @@ function foReadDecisionSupportInputs_(dashboard) {
 function foBuildInvestmentDecisionSupport_(dashboard, results) {
   const history = foLoadDecisionHistory_(dashboard);
   const materialityPolicy = foLoadMaterialityPolicy_(dashboard);
+  const confidenceCalibrationIndex = foBuildConfidenceCalibrationIndex_(dashboard);
 
   const decisions = results.map(function(item) {
     return foBuildDecisionRecord_(
       item,
       history,
-      materialityPolicy
+      materialityPolicy,
+      confidenceCalibrationIndex
     );
   }).sort(function(a, b) {
     return b.priorityScore - a.priorityScore;
@@ -119,7 +121,12 @@ function foBuildInvestmentDecisionSupport_(dashboard, results) {
   };
 }
 
-function foBuildDecisionRecord_(item, history, materialityPolicy) {
+function foBuildDecisionRecord_(
+  item,
+  history,
+  materialityPolicy,
+  confidenceCalibrationIndex
+) {
   const key = foDecisionKey_(item.ticker, item.account);
   const previous = history[key] || null;
 
@@ -172,6 +179,10 @@ function foBuildDecisionRecord_(item, history, materialityPolicy) {
     materialityAssessment.score,
     action
   );
+  const confidenceCalibration = foAssessConfidenceCalibration_(
+    item,
+    confidenceCalibrationIndex
+  );
 
   return {
     ticker: item.ticker,
@@ -206,6 +217,13 @@ function foBuildDecisionRecord_(item, history, materialityPolicy) {
     contradictionStatus: quality.contradictionStatus,
     contradictionReasons: quality.contradictionReasons,
     qualityRationale: quality.qualityRationale,
+    confidenceCalibrationScore: confidenceCalibration.score,
+    confidenceReliability: confidenceCalibration.reliability,
+    calibrationSampleSize: confidenceCalibration.sampleSize,
+    calibrationStatus: confidenceCalibration.status,
+    calibrationScope: confidenceCalibration.scope,
+    confidenceBand: confidenceCalibration.band,
+    calibrationRationale: confidenceCalibration.rationale,
     executiveReason: foDecisionExecutiveReason_(
       item,
       trend,
@@ -738,7 +756,14 @@ function foDecisionSupportHeaders_() {
     'Evidence Balance',
     'Contradiction Status',
     'Contradiction Reasons',
-    'Quality Rationale'
+    'Quality Rationale',
+    'Confidence Calibration Score',
+    'Confidence Reliability',
+    'Calibration Sample Size',
+    'Calibration Status',
+    'Calibration Scope',
+    'Confidence Band',
+    'Calibration Rationale'
   ];
 }
 
@@ -789,7 +814,14 @@ function foWriteDecisionSupport_(dashboard, decisions) {
       item.evidenceBalance,
       item.contradictionStatus,
       item.contradictionReasons,
-      item.qualityRationale
+      item.qualityRationale,
+      item.confidenceCalibrationScore,
+      item.confidenceReliability,
+      item.calibrationSampleSize,
+      item.calibrationStatus,
+      item.calibrationScope,
+      item.confidenceBand,
+      item.calibrationRationale
     ];
   });
 
@@ -871,6 +903,12 @@ function foWriteDecisionSupport_(dashboard, decisions) {
     'Quality Rationale',
     560
   );
+  foSetDecisionSupportColumnWidth_(
+    sheet,
+    headers,
+    'Calibration Rationale',
+    560
+  );
 }
 
 function foApplyDecisionSupportNumberFormats_(sheet, headers, rowCount) {
@@ -885,6 +923,8 @@ function foApplyDecisionSupportNumberFormats_(sheet, headers, rowCount) {
     { name: 'Confidence', format: '0' },
     { name: 'Confidence Delta', format: '0' },
     { name: 'Recommendation Quality Score', format: '0' },
+    { name: 'Confidence Calibration Score', format: '0' },
+    { name: 'Calibration Sample Size', format: '0' },
     { name: 'Distance to Entry %', format: '0.00%' },
     { name: 'Distance Delta', format: '0.00%' },
     { name: 'Current Price', format: '#,##0.00' },
@@ -970,7 +1010,14 @@ function foAppendDecisionHistory_(dashboard, decisions) {
       item.evidenceBalance,
       item.contradictionStatus,
       item.contradictionReasons,
-      item.qualityRationale
+      item.qualityRationale,
+      item.confidenceCalibrationScore,
+      item.confidenceReliability,
+      item.calibrationSampleSize,
+      item.calibrationStatus,
+      item.calibrationScope,
+      item.confidenceBand,
+      item.calibrationRationale
     ];
   });
 
@@ -1021,7 +1068,14 @@ function foDecisionHistoryHeaders_() {
     'Evidence Balance',
     'Contradiction Status',
     'Contradiction Reasons',
-    'Quality Rationale'
+    'Quality Rationale',
+    'Confidence Calibration Score',
+    'Confidence Reliability',
+    'Calibration Sample Size',
+    'Calibration Status',
+    'Calibration Scope',
+    'Confidence Band',
+    'Calibration Rationale'
   ];
 }
 
@@ -1103,7 +1157,14 @@ function foRunInvestmentDecisionSupportSmokeTest() {
     'Evidence Balance',
     'Contradiction Status',
     'Contradiction Reasons',
-    'Quality Rationale'
+    'Quality Rationale',
+    'Confidence Calibration Score',
+    'Confidence Reliability',
+    'Calibration Sample Size',
+    'Calibration Status',
+    'Calibration Scope',
+    'Confidence Band',
+    'Calibration Rationale'
   ].forEach(function(name) {
     if (headers.indexOf(name) === -1) {
       throw new Error('Missing decision-support column: ' + name);

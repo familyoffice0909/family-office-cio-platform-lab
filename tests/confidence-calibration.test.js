@@ -1,0 +1,15 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const source = fs.readFileSync('ConfidenceCalibrationService.js', 'utf8');
+const context = { console };
+vm.createContext(context);
+vm.runInContext(source, context);
+assert.strictEqual(context.foConfidenceCalibrationBand_(95), '90-100');
+assert.strictEqual(context.foConfidenceCalibrationBand_(85), '80-89');
+assert.strictEqual(context.foConfidenceCalibrationBand_(75), '70-79');
+assert.strictEqual(context.foConfidenceCalibrationBand_(65), '60-69');
+assert.strictEqual(context.foConfidenceCalibrationBand_(45), '0-59');
+assert.strictEqual(context.foConfidenceCalibrationProxyOutcome_({confidence:80,recommendation:'BUY',action:'BUY'},{confidence:72,recommendation:'BUY',action:'BUY'}),1);
+assert.strictEqual(context.foConfidenceCalibrationProxyOutcome_({confidence:80,recommendation:'BUY',action:'BUY'},{confidence:50,recommendation:'AVOID',action:'AVOID'}),0);
+console.log('Confidence Calibration unit checks passed.');
