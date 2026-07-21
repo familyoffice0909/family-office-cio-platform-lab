@@ -39,6 +39,6 @@ describe('Wave A2.4.0 static integration', () => {
 
   test('feature does not change platform version metadata', () => {
     const config = read('Config.js');
-    expect(config).toContain("PLATFORM_VERSION: 'v1.2.1'");
+    expect(config).toContain("PLATFORM_VERSION: 'v1.3.0'");
   });
 });
