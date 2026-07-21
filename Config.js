@@ -5,13 +5,19 @@ const FO_CONFIG = {
 
   BASELINE: 'CB-002',
   BUILD: '2026.07.16.1300',
-  ENVIRONMENT: 'Production',
+  get ENVIRONMENT() {
+    return foGetRuntimeEnvironment_();
+  },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
   ENGINE_VERSION: 'v3.0.0',
 
-  LEDGER_SPREADSHEET_ID: '1_NIOTk1bC0QilRDfo8nKshoLh9Xdm1FWdDybsNvAo8k',
-  DASHBOARD_SPREADSHEET_ID: '13jHJ0N1Gzbia7B4FIHkdTqf2tCp1tkXSFicQ2ti8M1w',
+  get LEDGER_SPREADSHEET_ID() {
+    return foGetRuntimeLedgerSpreadsheetId_();
+  },
+  get DASHBOARD_SPREADSHEET_ID() {
+    return foGetRuntimeDashboardSpreadsheetId_();
+  },
 
   BASE_CURRENCY: 'CAD',
   TIMEZONE: Session.getScriptTimeZone()

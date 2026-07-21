@@ -32,12 +32,17 @@ function jsFiles() {
 }
 
 const requiredFiles = [
+  'package.json',
+  'package-lock.json',
   'appsscript.json',
   'Config.js',
   'Bootstrap.js',
   'HealthCheck.js',
+  'RuntimeSafety.js',
+  'RuntimeLockService.js',
   'SpreadsheetService.js',
   'ValidationService.js',
+  'RegistryAuthority.js',
   'ModuleRegistry.js',
   'AutonomousCioOrchestrator.js',
   'Menu.js',
@@ -65,6 +70,21 @@ if (exists('appsscript.json')) {
 
 const sources = jsFiles().map((file) => ({ file, text: read(file) }));
 const combined = sources.map((item) => item.text).join('\n');
+
+const directWorkbookOpenRegex = /SpreadsheetApp\s*\.\s*openBy(?:Id|Url)\s*\(/g;
+let directWorkbookOpenCount = 0;
+
+for (const source of sources) {
+  const directWorkbookOpens = source.text.match(directWorkbookOpenRegex) || [];
+  directWorkbookOpenCount += directWorkbookOpens.length;
+
+  if (source.file !== 'SpreadsheetService.js' && directWorkbookOpens.length > 0) {
+    fail(
+      'Direct workbook access must flow through SpreadsheetService.js: ' +
+      source.file
+    );
+  }
+}
 
 const functionLocations = new Map();
 const functionRegex = /^\s*function\s+([A-Za-z_$][\w$]*)\s*\(/gm;
@@ -141,15 +161,39 @@ if (exists('AutonomousCioOrchestrator.js')) {
   }
 }
 
-if (exists('package.json') && exists('Config.js')) {
+if (
+  exists('package.json') &&
+  exists('package-lock.json') &&
+  exists('Config.js')
+) {
   try {
     const packageVersion = JSON.parse(read('package.json')).version;
+    const packageLock = JSON.parse(read('package-lock.json'));
+    const lockVersion = packageLock.version;
+    const lockRootVersion = packageLock.packages &&
+      packageLock.packages[''] &&
+      packageLock.packages[''].version;
     const config = read('Config.js');
     const versionMatch = config.match(/PLATFORM_VERSION\s*:\s*['"]v?(\d+\.\d+\.\d+)['"]/);
     if (!versionMatch) {
-      warn('Could not find PLATFORM_VERSION in Config.js');
-    } else if (versionMatch[1] !== packageVersion) {
-      fail(`Version mismatch: package.json=${packageVersion}, Config.js=${versionMatch[1]}`);
+      fail('Could not find PLATFORM_VERSION in Config.js');
+    }
+
+    const versions = [
+      ['package-lock.json top-level version', lockVersion],
+      ['package-lock.json root-package version', lockRootVersion],
+      ['Config.js PLATFORM_VERSION', versionMatch && versionMatch[1]]
+    ];
+
+    for (const [source, version] of versions) {
+      if (!version) {
+        fail(`Version is missing: ${source}`);
+      } else if (version !== packageVersion) {
+        fail(
+          `Version mismatch: package.json=${packageVersion}, ` +
+          `${source}=${version}`
+        );
+      }
     }
   } catch (error) {
     fail(`Version validation failed: ${error.message}`);
@@ -192,6 +236,10 @@ if (smokeTests.length === 0) {
 console.log(`Validated ${sources.length} JavaScript files.`);
 console.log(`Discovered ${functionLocations.size} global functions.`);
 console.log(`Discovered ${smokeTests.length} smoke-test functions.`);
+console.log(
+  `Validated ${directWorkbookOpenCount} direct workbook open(s), ` +
+  'confined to SpreadsheetService.js.'
+);
 console.log(`Warnings: ${warnings.length}`);
 console.log(`Errors: ${errors.length}`);
 

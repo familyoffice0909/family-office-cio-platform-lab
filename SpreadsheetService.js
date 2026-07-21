@@ -1,12 +1,37 @@
 function foDashboard_() {
-  return SpreadsheetApp.openById(FO_CONFIG.DASHBOARD_SPREADSHEET_ID);
+  // Intentional adapter boundary: callers must not invoke SpreadsheetApp
+  // directly. RuntimeSafety validates the configured ID before and after open.
+  const spreadsheet = SpreadsheetApp.openById(
+    foGetRuntimeDashboardSpreadsheetId_()
+  );
+  foAssertRuntimeSpreadsheet_(
+    spreadsheet,
+    'DASHBOARD',
+    'Open dashboard workbook'
+  );
+  return spreadsheet;
 }
 
 function foLedger_() {
-  return SpreadsheetApp.openById(FO_CONFIG.LEDGER_SPREADSHEET_ID);
+  // Intentional adapter boundary: callers must not invoke SpreadsheetApp
+  // directly. RuntimeSafety validates the configured ID before and after open.
+  const spreadsheet = SpreadsheetApp.openById(
+    foGetRuntimeLedgerSpreadsheetId_()
+  );
+  foAssertRuntimeSpreadsheet_(
+    spreadsheet,
+    'LEDGER',
+    'Open ledger workbook'
+  );
+  return spreadsheet;
 }
 
 function foEnsureSheet_(spreadsheet, name, headers) {
+  foAssertRuntimeSpreadsheet_(
+    spreadsheet,
+    'ANY',
+    'Ensure governed worksheet'
+  );
   let sheet = spreadsheet.getSheetByName(name);
 
   if (!sheet) {

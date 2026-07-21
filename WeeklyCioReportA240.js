@@ -69,7 +69,7 @@ function foRunWeeklyCioReportA240(options) {
     dashboard,
     'WEEKLY_CIO_REPORT_A240'
   );
-  const archiveSheet = foEnsureSheetA230(
+  const archiveSheet = foA240EnsureAdditiveSchema_(
     dashboard,
     'WEEKLY_CIO_REPORT_ARCHIVE_A240'
   );
@@ -235,6 +235,24 @@ function foA240BuildModel_(
     priority,
     'Evidence-based summary generated from the governed decision state.',
     'Executive Decision State A233'
+  );
+  const whatsNew = foA240WhatsNew_(
+    state,
+    actionCards,
+    conflicts,
+    priorArchive,
+    capitalDeploymentAuthorization
+  );
+  add(
+    "WHAT'S NEW",
+    whatsNew.priority,
+    'Material Changes Since Previous Report',
+    whatsNew.summary,
+    priorArchive['Report ID'] || 'NOT AVAILABLE',
+    whatsNew.changeCount,
+    whatsNew.status,
+    whatsNew.evidence,
+    'Weekly CIO Report Archive A240 | Executive Decision State A233 | Report Action Cards A233'
   );
   add(
     'EXECUTIVE DECISION',
@@ -546,6 +564,16 @@ function foA240BuildModel_(
         ' | Portfolio weight: ' + foA240PercentPointsText_(positionWeight) +
         ' | Confidence: ' + foA240Number_(card.Confidence) +
         ' | Materiality: ' + foA240Number_(card['Materiality Score']) +
+        ' | Recommendation: ' + foA240Text_(card.Recommendation) +
+        ' | Quality: ' +
+          foA240Text_(card['Recommendation Quality Grade']) +
+          ' (' +
+          foA240Number_(card['Recommendation Quality Score']) + ')' +
+        ' | Evidence balance: ' +
+          foA240Text_(card['Evidence Balance']) +
+        ' | Contradiction: ' +
+          foA240Text_(card['Contradiction Status']) +
+        ' | ' + foA240Text_(card['Quality Rationale']) +
         ' | ' + foA240Text_(card.Commentary),
       'Report Action Cards A233 | Position Risk'
     );
@@ -627,7 +655,8 @@ function foA240BuildModel_(
     costBasisCoveragePct: costBasisCoverage,
     returnAttributionCoveragePct: returnCoverage,
     actionCardCount: actionCards.length,
-    conflictCount: conflicts.length
+    conflictCount: conflicts.length,
+    actionQualitySignature: foA240ActionQualitySignature_(actionCards)
   };
 }
 
@@ -650,6 +679,9 @@ function foRunWeeklyCioReportValidationA240(
   );
   const conflictSheet = dashboard.getSheetByName(
     FO_SHEETS.REPORT_CONFLICTS_A233
+  );
+  const actionSheet = dashboard.getSheetByName(
+    FO_SHEETS.REPORT_ACTION_CARDS_A233
   );
 
   suite.add('SCHEMA', 'Weekly report schema valid', function() {
@@ -709,6 +741,35 @@ function foRunWeeklyCioReportValidationA240(
     return foA240Text_(reported['Current Value / Action']) ===
       foA240Text_(source['Execution Status']);
   }, 'CRITICAL');
+
+  suite.add('QUALITY', 'Recommendation quality is inherited from A2.3.3',
+    function() {
+      const cards = foA240RowsForRun_(
+        actionSheet,
+        'Run ID',
+        expectedDecisionRunId
+      );
+      return cards.every(function(card) {
+        const reported = foA240FindReportMetric_(
+          reportSheet,
+          foA240ActionLabel_(card)
+        );
+        const evidence = foA240Text_(
+          reported['Evidence / Commentary']
+        );
+        const grade = foA240Text_(
+          card['Recommendation Quality Grade']
+        );
+        const contradiction = foA240Text_(
+          card['Contradiction Status']
+        );
+        return Boolean(
+          reported['Metric / Ticker'] &&
+          evidence.indexOf('Quality: ' + grade) >= 0 &&
+          evidence.indexOf('Contradiction: ' + contradiction) >= 0
+        );
+      });
+    }, 'HIGH');
 
   suite.add('POLICY', 'Capital deployment authorization is controlled',
     function() {
@@ -1061,8 +1122,247 @@ function foA240ArchiveRow_(model, validation, run) {
     model.conflictCount,
     validation.status,
     run.platformVersion,
-    run.baseline
+    run.baseline,
+    model.actionQualitySignature
   ];
+}
+
+function foA240WhatsNew_(
+  state,
+  actionCards,
+  conflicts,
+  priorArchive,
+  deploymentAuthorization
+) {
+  const hasPriorReport = Boolean(priorArchive && priorArchive['Report ID']);
+  if (!hasPriorReport) {
+    return {
+      summary: '• Baseline weekly report established; no prior report is available for comparison.',
+      changeCount: 1,
+      priority: 'NORMAL',
+      status: 'BASELINE CREATED',
+      evidence: 'The current report establishes the comparison baseline for the next weekly cycle.'
+    };
+  }
+
+  const changes = [];
+  const addChange = function(priority, score, text) {
+    changes.push({priority: priority, score: score, text: text});
+  };
+  const posture = foA240Text_(state['Portfolio Posture']);
+  const execution = foA240Text_(state['Execution Status']);
+  const riskLevel = foA240Text_(state['Portfolio Risk Level']);
+  const riskScore = foA240Number_(state['Risk Score']);
+  const materiality = foA240Number_(state['Overall Materiality']);
+  const priorPosture = priorArchive['Portfolio Posture'];
+  const priorExecution = priorArchive['Execution Status'];
+  const priorRiskLevel = priorArchive['Portfolio Risk Level'];
+  const priorRiskScore = priorArchive['Risk Score'];
+  const priorMateriality = priorArchive['Overall Materiality'];
+  const priorAuthorization = priorArchive['Capital Deployment Authorization'];
+  const priorConflictCount = priorArchive['Conflict Count'];
+  const priorQualitySignature = foA240Text_(
+    priorArchive['Action Quality Signature']
+  );
+
+  if (foA240ChangeText_(priorPosture, posture) !== 'UNCHANGED') {
+    addChange('CRITICAL', 100, 'Portfolio posture changed ' +
+      foA240ChangeText_(priorPosture, posture) + '.');
+  }
+  if (foA240ChangeText_(priorExecution, execution) !== 'UNCHANGED') {
+    addChange('CRITICAL', 95, 'Execution status changed ' +
+      foA240ChangeText_(priorExecution, execution) + '.');
+  }
+  if (foA240ChangeText_(priorAuthorization, deploymentAuthorization) !== 'UNCHANGED') {
+    addChange('CRITICAL', 90, 'Capital deployment authorization changed ' +
+      foA240ChangeText_(priorAuthorization, deploymentAuthorization) + '.');
+  }
+  if (foA240ChangeText_(priorRiskLevel, riskLevel) !== 'UNCHANGED') {
+    addChange('HIGH', 85, 'Portfolio risk changed ' +
+      foA240ChangeText_(priorRiskLevel, riskLevel) + '.');
+  }
+
+  const materialityDelta = foA240NumericDelta_(priorMateriality, materiality);
+  if (Math.abs(materialityDelta) >= 5) {
+    addChange(
+      Math.abs(materialityDelta) >= 10 ? 'CRITICAL' : 'HIGH',
+      80 + Math.min(Math.abs(materialityDelta), 19),
+      'Overall materiality ' + (materialityDelta > 0 ? 'increased' : 'decreased') +
+        ' ' + foA240Number_(priorMateriality) + ' → ' + materiality +
+        ' (' + (materialityDelta > 0 ? '+' : '') + materialityDelta + ').'
+    );
+  }
+
+  const riskDelta = foA240NumericDelta_(priorRiskScore, riskScore);
+  if (Math.abs(riskDelta) >= 5) {
+    addChange(
+      Math.abs(riskDelta) >= 10 ? 'CRITICAL' : 'HIGH',
+      75 + Math.min(Math.abs(riskDelta), 19),
+      'Risk score ' + (riskDelta > 0 ? 'increased' : 'decreased') +
+        ' ' + foA240Number_(priorRiskScore) + ' → ' + riskScore +
+        ' (' + (riskDelta > 0 ? '+' : '') + riskDelta + ').'
+    );
+  }
+
+  const conflictDelta = foA240NumericDelta_(priorConflictCount, conflicts.length);
+  if (conflictDelta !== 0) {
+    addChange(
+      conflicts.length ? 'CRITICAL' : 'HIGH',
+      conflicts.length ? 92 : 70,
+      conflicts.length
+        ? 'Open report conflicts changed ' + foA240Number_(priorConflictCount) +
+          ' → ' + conflicts.length + '.'
+        : 'All previously reported conflicts are now clear.'
+    );
+  }
+
+  actionCards.forEach(function(card) {
+    const confidenceDelta = foA240Number_(card['Confidence Delta']);
+    const materialityScore = foA240Number_(card['Materiality Score']);
+    const executionStatus = foA240Text_(card['Execution Status']);
+    if (Math.abs(confidenceDelta) < 5 && materialityScore < 70) return;
+    const label = foA240ActionLabel_(card);
+    const direction = confidenceDelta > 0
+      ? 'increased'
+      : (confidenceDelta < 0 ? 'decreased' : 'is unchanged');
+    addChange(
+      materialityScore >= 85 ? 'CRITICAL' : 'HIGH',
+      materialityScore,
+      label + ' confidence ' + direction +
+        (confidenceDelta ? ' by ' + Math.abs(confidenceDelta) + ' points' : '') +
+        '; execution status is ' + executionStatus + '.'
+    );
+  });
+
+  if (priorQualitySignature) {
+    const priorQuality = foA240ParseActionQualitySignature_(
+      priorQualitySignature
+    );
+    const currentQuality = foA240ParseActionQualitySignature_(
+      foA240ActionQualitySignature_(actionCards)
+    );
+    Object.keys(currentQuality).forEach(function(key) {
+      const current = currentQuality[key];
+      const prior = priorQuality[key];
+      if (!prior) return;
+      if (
+        prior.grade === current.grade &&
+        prior.contradiction === current.contradiction
+      ) {
+        return;
+      }
+      const blocked = current.contradiction === 'BLOCKED' ||
+        current.grade === 'INSUFFICIENT DATA';
+      addChange(
+        blocked ? 'CRITICAL' : 'HIGH',
+        blocked ? 94 : 78,
+        current.label + ' recommendation quality changed ' +
+          prior.grade + '/' + prior.contradiction + ' → ' +
+          current.grade + '/' + current.contradiction + '.'
+      );
+    });
+  }
+
+  changes.sort(function(a, b) { return b.score - a.score; });
+  const selected = changes.slice(0, 5);
+  if (!selected.length) {
+    return {
+      summary: 'No material changes since the previous report.',
+      changeCount: 0,
+      priority: 'NORMAL',
+      status: 'UNCHANGED',
+      evidence: 'Existing archive comparisons produced no material executive change above the configured thresholds.'
+    };
+  }
+  return {
+    summary: selected.map(function(item) { return '• ' + item.text; }).join('\n'),
+    changeCount: selected.length,
+    priority: selected.some(function(item) { return item.priority === 'CRITICAL'; })
+      ? 'CRITICAL'
+      : 'HIGH',
+    status: 'MATERIAL CHANGE',
+    evidence: 'Executive changes are ranked by materiality and limited to five bullets.'
+  };
+}
+
+function foA240ActionQualitySignature_(actionCards) {
+  return actionCards.map(function(card) {
+    const ticker = foA240Text_(card.Ticker).toUpperCase();
+    const account = foA240Text_(card.Account).toUpperCase();
+    const grade = foA240Text_(
+      card['Recommendation Quality Grade'] || 'NOT ASSESSED'
+    ).toUpperCase();
+    const contradiction = foA240Text_(
+      card['Contradiction Status'] || 'NOT ASSESSED'
+    ).toUpperCase();
+    return [ticker, account, grade, contradiction].join('~');
+  }).sort().join(';');
+}
+
+function foA240ParseActionQualitySignature_(signature) {
+  const result = {};
+  foA240Text_(signature).split(';').forEach(function(segment) {
+    if (!segment) return;
+    const parts = segment.split('~');
+    if (parts.length < 4) return;
+    const ticker = parts[0];
+    const account = parts[1];
+    const key = ticker + '|' + account;
+    result[key] = {
+      label: ticker + (account ? ' (' + account + ')' : ''),
+      grade: parts[2],
+      contradiction: parts[3]
+    };
+  });
+  return result;
+}
+
+function foA240EnsureAdditiveSchema_(dashboard, key) {
+  const schema = foGetSchemaA230(key);
+  let sheet = dashboard.getSheetByName(schema.sheetName);
+  if (!sheet || sheet.getLastRow() === 0) {
+    return foEnsureSheetA230(dashboard, key);
+  }
+
+  const expected = schema.headers.slice();
+  const actual = sheet.getRange(
+    1,
+    1,
+    1,
+    sheet.getLastColumn()
+  ).getDisplayValues()[0].map(foA240Text_);
+
+  if (actual.length > expected.length) {
+    throw new Error(
+      'A2.6.0 additive schema migration found unexpected columns: ' +
+      schema.sheetName
+    );
+  }
+  for (let index = 0; index < actual.length; index++) {
+    if (actual[index] !== expected[index]) {
+      throw new Error(
+        'A2.6.0 additive schema migration found incompatible header at ' +
+        schema.sheetName + ' column ' + (index + 1)
+      );
+    }
+  }
+
+  if (actual.length < expected.length) {
+    if (sheet.getMaxColumns() < expected.length) {
+      sheet.insertColumnsAfter(
+        sheet.getMaxColumns(),
+        expected.length - sheet.getMaxColumns()
+      );
+    }
+    sheet.getRange(
+      1,
+      actual.length + 1,
+      1,
+      expected.length - actual.length
+    ).setValues([expected.slice(actual.length)]);
+  }
+
+  return foEnsureSheetA230(dashboard, key);
 }
 
 function foA240ExecutiveSummary_(state, deploymentAuthorization) {

@@ -124,7 +124,15 @@ function foReadCapitalDeploymentInputs_(dashboard) {
       recommendation: String(foCapitalVal_(row, headers, 'Recommendation') || '').trim(),
       allocationBand: String(foCapitalVal_(row, headers, 'Allocation Band') || '').trim(),
       materialityScore: foCapitalNumber_(foCapitalVal_(row, headers, 'Materiality Score'), 0),
+      basePriorityScore: foCapitalNumber_(
+        foCapitalVal_(row, headers, 'Base Priority Score'),
+        foCapitalNumber_(foCapitalVal_(row, headers, 'Priority Score'), 0)
+      ),
       priorityScore: foCapitalNumber_(foCapitalVal_(row, headers, 'Priority Score'), 0),
+      priorityLevel: String(foCapitalVal_(row, headers, 'Priority Level') || '').trim().toUpperCase(),
+      overallTrajectory: String(foCapitalVal_(row, headers, 'Overall Trajectory') || '').trim().toUpperCase(),
+      reversalStatus: String(foCapitalVal_(row, headers, 'Reversal Status') || '').trim().toUpperCase(),
+      trendEvidenceStrength: String(foCapitalVal_(row, headers, 'Trend Evidence Strength') || '').trim().toUpperCase(),
       trend: String(foCapitalVal_(row, headers, 'Trend') || '').trim(),
       conviction: foCapitalNumber_(foCapitalVal_(row, headers, 'Conviction'), 0),
       risk: foCapitalNumber_(foCapitalVal_(row, headers, 'Risk'), 100),
@@ -140,7 +148,24 @@ function foReadCapitalDeploymentInputs_(dashboard) {
         foCapitalVal_(row, headers, 'Target Entry Price'),
         0
       ),
-      executiveReason: String(foCapitalVal_(row, headers, 'Executive Reason') || '').trim()
+      executiveReason: String(foCapitalVal_(row, headers, 'Executive Reason') || '').trim(),
+      recommendationQualityScore: foCapitalNumber_(
+        foCapitalVal_(row, headers, 'Recommendation Quality Score'),
+        0
+      ),
+      recommendationQualityGrade: String(
+        foCapitalVal_(row, headers, 'Recommendation Quality Grade') ||
+        'NOT ASSESSED'
+      ).trim().toUpperCase(),
+      evidenceBalance: String(
+        foCapitalVal_(row, headers, 'Evidence Balance') || 'NOT ASSESSED'
+      ).trim().toUpperCase(),
+      contradictionStatus: String(
+        foCapitalVal_(row, headers, 'Contradiction Status') || 'NOT ASSESSED'
+      ).trim().toUpperCase(),
+      qualityRationale: String(
+        foCapitalVal_(row, headers, 'Quality Rationale') || ''
+      ).trim()
     };
   }).filter(function(item) {
     return item.ticker;
@@ -265,6 +290,22 @@ function foBuildCapitalDeploymentRecord_(item, policy, portfolioMateriality) {
   if (item.recommendation === 'HOLD' || item.recommendation === 'AVOID') {
     blockers.push('Recommendation not deployable');
   }
+  if (item.recommendationQualityGrade === 'INSUFFICIENT DATA') {
+    blockers.push('INSUFFICIENT RECOMMENDATION DATA');
+  }
+  if (item.recommendationQualityGrade === 'LOW') {
+    blockers.push('LOW RECOMMENDATION QUALITY');
+  }
+  if (item.contradictionStatus === 'BLOCKED') {
+    blockers.push('RECOMMENDATION CONTRADICTION');
+  }
+  if (
+    item.reversalStatus === 'REVERSING DOWNWARD' &&
+    (item.trendEvidenceStrength === 'MEDIUM' ||
+      item.trendEvidenceStrength === 'HIGH')
+  ) {
+    blockers.push('HIGH-EVIDENCE DOWNWARD REVERSAL');
+  }
 
   const isBlocked = blockers.length > 0;
   const deploymentDecision = foCapitalDeploymentDecision_(
@@ -287,12 +328,22 @@ function foBuildCapitalDeploymentRecord_(item, policy, portfolioMateriality) {
     risk: item.risk,
     confidence: item.confidence,
     materialityScore: item.materialityScore,
+    basePriorityScore: item.basePriorityScore,
     priorityScore: item.priorityScore,
+    priorityLevel: item.priorityLevel,
+    overallTrajectory: item.overallTrajectory,
+    reversalStatus: item.reversalStatus,
+    trendEvidenceStrength: item.trendEvidenceStrength,
     priceFreshness: item.priceFreshness,
     zonePosition: item.zonePosition,
     distancePct: item.distancePct,
     currentPrice: item.currentPrice,
     targetEntryPrice: item.targetEntryPrice,
+    recommendationQualityScore: item.recommendationQualityScore,
+    recommendationQualityGrade: item.recommendationQualityGrade,
+    evidenceBalance: item.evidenceBalance,
+    contradictionStatus: item.contradictionStatus,
+    qualityRationale: item.qualityRationale,
     isBlocked: isBlocked,
     blockers: blockers.join(' | ') || 'NONE',
     executiveReason: foCapitalExecutiveReason_(
@@ -346,9 +397,13 @@ function foCapitalExecutiveReason_(item, score, decision, blockers) {
     'Risk ' + item.risk,
     'Confidence ' + item.confidence,
     'Trend ' + item.trend,
-    'Zone ' + item.zonePosition
+    'Zone ' + item.zonePosition,
+    'Quality ' + item.recommendationQualityGrade +
+      ' (' + item.recommendationQualityScore + ')',
+    'Contradiction ' + item.contradictionStatus
   ];
   if (blockers.length) parts.push('Blockers ' + blockers.join(', '));
+  if (item.qualityRationale) parts.push(item.qualityRationale);
   return parts.join(' | ');
 }
 
@@ -356,11 +411,14 @@ function foCapitalDeploymentHeaders_() {
   return [
     'Rank', 'Ticker', 'Account', 'Deployment Decision', 'Deployment Score',
     'Recommendation', 'Action', 'Allocation Band', 'Trend', 'Conviction',
-    'Risk', 'Confidence', 'Materiality Score', 'Priority Score',
-    'Price Freshness', 'Zone Position', 'Distance to Entry %', 'Current Price',
+    'Risk', 'Confidence', 'Materiality Score', 'Base Priority Score',
+    'Executive Priority Score', 'Priority Level', 'Overall Trajectory',
+    'Reversal Status', 'Trend Evidence Strength', 'Price Freshness', 'Zone Position', 'Distance to Entry %', 'Current Price',
     'Target Entry Price', 'Blocked', 'Blockers', 'Executive Reason',
     'Portfolio Directive', 'Portfolio Materiality Score', 'Timestamp',
-    'Platform Version', 'Baseline'
+    'Platform Version', 'Baseline', 'Recommendation Quality Score',
+    'Recommendation Quality Grade', 'Evidence Balance',
+    'Contradiction Status', 'Quality Rationale'
   ];
 }
 
@@ -381,14 +439,20 @@ function foWriteCapitalDeploymentPriorities_(dashboard, assessment) {
       item.rank, item.ticker, item.account, item.deploymentDecision,
       item.deploymentScore, item.recommendation, item.action,
       item.allocationBand, item.trend, item.conviction, item.risk,
-      item.confidence, item.materialityScore, item.priorityScore,
-      item.priceFreshness, item.zonePosition,
+      item.confidence, item.materialityScore, item.basePriorityScore,
+      item.priorityScore, item.priorityLevel, item.overallTrajectory,
+      item.reversalStatus, item.trendEvidenceStrength, item.priceFreshness, item.zonePosition,
       item.distancePct === null ? '' : item.distancePct,
       item.currentPrice, item.targetEntryPrice,
       item.isBlocked ? 'YES' : 'NO', item.blockers,
       item.executiveReason, assessment.portfolioDirective,
       assessment.portfolioMateriality.score, now,
-      FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE
+      FO_CONFIG.PLATFORM_VERSION, FO_CONFIG.BASELINE,
+      item.recommendationQualityScore,
+      item.recommendationQualityGrade,
+      item.evidenceBalance,
+      item.contradictionStatus,
+      item.qualityRationale
     ];
   });
 
@@ -401,11 +465,22 @@ function foWriteCapitalDeploymentPriorities_(dashboard, assessment) {
     .setFontWeight('bold')
     .setBackground('#1f4e78')
     .setFontColor('#ffffff');
-  sheet.getRange(2, 17, Math.max(rows.length, 1), 1).setNumberFormat('0.00%');
-  sheet.getRange(2, 18, Math.max(rows.length, 1), 2).setNumberFormat('0.00');
+  sheet.getRange(
+    2,
+    headers.indexOf('Distance to Entry %') + 1,
+    Math.max(rows.length, 1),
+    1
+  ).setNumberFormat('0.00%');
+  sheet.getRange(
+    2,
+    headers.indexOf('Current Price') + 1,
+    Math.max(rows.length, 1),
+    2
+  ).setNumberFormat('0.00');
   sheet.autoResizeColumns(1, headers.length);
   sheet.setColumnWidth(21, 320);
   sheet.setColumnWidth(22, 560);
+  sheet.setColumnWidth(headers.indexOf('Quality Rationale') + 1, 560);
 }
 
 function foAppendCapitalDeploymentHistory_(dashboard, assessment) {

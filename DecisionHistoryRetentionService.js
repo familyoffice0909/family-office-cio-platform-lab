@@ -167,7 +167,9 @@ function foDecisionStateSignature_(item) {
     item.distancePct === null
       ? ''
       : Math.round(item.distancePct * 10000) / 10000,
-    item.priceFreshness
+    item.priceFreshness,
+    item.recommendationQualityGrade || '',
+    item.contradictionStatus || ''
   ].join('|');
 }
 
