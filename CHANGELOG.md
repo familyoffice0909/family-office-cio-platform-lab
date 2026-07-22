@@ -4,6 +4,26 @@ All notable changes to the Family Office CIO Platform are documented here.
 
 The project follows [Semantic Versioning](https://semver.org/).
 
+## [2.9.0-lab] - 2026-07-21
+
+### Completed
+- Sprint 2.9.0 — Materiality and Prioritization Intelligence
+- Feature integration into `develop`
+- Promotion from `develop` into lab `main`
+- Synchronization of lab `main` back into `develop`
+- Production promotion and GitHub release `v2.9.0`
+
+### Validation
+- Platform validator passed
+- ESLint passed
+- Jest passed
+- Sprint 2.9.0 release manifest synchronized with the production repository
+
+### Baseline
+- Lab baseline tag: `v2.9.0-lab`
+- Production baseline tag: `v2.9.0`
+- Future Sprint 3.0.0 development must branch from the synchronized post-v2.9.0 `develop` baseline
+
 ## [Unreleased]
 
 ### Fixed
