@@ -18,6 +18,10 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Fail-closed LAB/PRODUCTION runtime configuration and governed Dashboard/Ledger workbook access for wave R1.3.0.2
 - Runtime locking for the Autonomous CIO Orchestrator, Production Certification, and report-archive workflows; other mutating paths are outside the approved reduced scope
 - Explicit Apps Script OAuth scopes and Jest coverage for runtime guard and lock behavior
+- Environment/role binding through workbook-resident named-range sentinels for wave R1.3.0.3
+- Separate runtime read and write authorization, with Production writes remaining explicitly gated
+- Runtime locking for the authoritative Wave311 certification, Executive Report archive, and Weekly CIO Report archive paths
+- Root Production Apps Script ESLint coverage, runtime-focused regression tests, migration guidance, audit evidence, and a Lab validation template
 
 ### Planned
 - Buy Zone Intelligence hardening

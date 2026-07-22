@@ -4,7 +4,7 @@ function foCreateDashboardBackup() {
   try {
     foInfo_(module, 'Start', 'Creating dashboard backup.');
 
-    const dashboard = foDashboard_();
+    foDashboard_();
     const file = DriveApp.getFileById(FO_CONFIG.DASHBOARD_SPREADSHEET_ID);
 
     const timestamp = Utilities.formatDate(

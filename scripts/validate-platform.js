@@ -34,6 +34,7 @@ function jsFiles() {
 const requiredFiles = [
   'package.json',
   'package-lock.json',
+  'eslint.config.js',
   'appsscript.json',
   'Config.js',
   'Bootstrap.js',
@@ -41,6 +42,9 @@ const requiredFiles = [
   'RuntimeSafety.js',
   'RuntimeLockService.js',
   'SpreadsheetService.js',
+  'docs/operations/RUNTIME-CONFIGURATION-AND-MIGRATION.md',
+  'docs/validation/R1.3.0.3-LAB-VALIDATION-TEMPLATE.md',
+  'docs/validation/R1.3.0.3-RUNTIME-SAFETY-AUDIT-EVIDENCE.md',
   'ValidationService.js',
   'RegistryAuthority.js',
   'ModuleRegistry.js',
@@ -102,6 +106,89 @@ for (const source of sources) {
 for (const [name, locations] of functionLocations.entries()) {
   if (locations.length > 1) {
     fail(`Duplicate global function "${name}" found in: ${locations.join(', ')}`);
+  }
+}
+
+const runtimeProtectedSurfaces = [
+  {
+    file: 'AutonomousCioOrchestrator.js',
+    publicFunction: 'foRunAutonomousCioOrchestrator',
+    protectedFunction: 'foRunAutonomousCioOrchestratorProtected_',
+    operation: 'Run Autonomous CIO Orchestrator'
+  },
+  {
+    file: 'ProductionCertificationEngine.js',
+    publicFunction: 'foRunProductionCertification',
+    protectedFunction: 'foRunProductionCertificationProtected_',
+    operation: 'Run Production Certification'
+  },
+  {
+    file: 'ReportService.js',
+    publicFunction: 'foArchiveReport',
+    protectedFunction: 'foArchiveReportProtected_',
+    operation: 'Archive report'
+  },
+  {
+    file: 'Wave311CertificationEngine.js',
+    publicFunction: 'foRunProductionCertificationWave311',
+    protectedFunction: 'foRunProductionCertificationWave311Protected_',
+    operation: 'Run Production Certification Wave311'
+  },
+  {
+    file: 'ExecutiveReportingEngine.js',
+    publicFunction: 'foRunExecutiveReportEngine',
+    protectedFunction: 'foRunExecutiveReportEngineProtected_',
+    operation: 'Run Executive Report archive workflow'
+  },
+  {
+    file: 'WeeklyCioReportA240.js',
+    publicFunction: 'foRunWeeklyCioReportA240',
+    protectedFunction: 'foRunWeeklyCioReportA240Protected_',
+    operation: 'Run Weekly CIO Report A240 archive workflow'
+  }
+];
+
+if (exists('RuntimeLockService.js')) {
+  const runtimeLockService = read('RuntimeLockService.js');
+
+  for (const surface of runtimeProtectedSurfaces) {
+    const source = exists(surface.file) ? read(surface.file) : '';
+    if (!functionLocations.has(surface.publicFunction)) {
+      fail(`Runtime-protected public function is missing: ${surface.publicFunction}`);
+    }
+    if (!functionLocations.has(surface.protectedFunction)) {
+      fail(`Runtime-protected helper is missing: ${surface.protectedFunction}`);
+    }
+    if (!source.includes('foWithRuntimeLock_(')) {
+      fail(`Runtime lock wrapper is missing from ${surface.file}`);
+    }
+    if (!runtimeLockService.includes(`'${surface.operation}'`)) {
+      fail(`Runtime protected-operation inventory is missing: ${surface.operation}`);
+    }
+  }
+}
+
+if (exists('RuntimeSafety.js')) {
+  const runtimeSafety = read('RuntimeSafety.js');
+  for (const rangeName of [
+    'FO_RUNTIME_ENVIRONMENT',
+    'FO_RUNTIME_WORKBOOK_ROLE'
+  ]) {
+    if (!runtimeSafety.includes(`'${rangeName}'`)) {
+      fail(`Runtime workbook binding is missing named range: ${rangeName}`);
+    }
+  }
+}
+
+if (exists('eslint.config.js')) {
+  const eslintConfig = read('eslint.config.js');
+  if (!/files\s*:\s*\[\s*['"]\*\.js['"]/.test(eslintConfig)) {
+    fail('ESLint must cover root Production JavaScript files');
+  }
+  for (const rule of ['no-undef', 'no-unused-vars', 'no-unreachable']) {
+    if (!eslintConfig.includes(`'${rule}'`)) {
+      fail(`Production ESLint rule is missing: ${rule}`);
+    }
   }
 }
 
@@ -231,6 +318,9 @@ const smokeTests = [...functionLocations.keys()]
 
 if (smokeTests.length === 0) {
   fail('No smoke-test functions were found');
+}
+if (!functionLocations.has('foRunRuntimeSafetySmokeTest')) {
+  fail('Runtime Safety smoke-test function is missing');
 }
 
 console.log(`Validated ${sources.length} JavaScript files.`);

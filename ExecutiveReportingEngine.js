@@ -4,6 +4,16 @@
  ************************************************************/
 
 function foRunExecutiveReportEngine() {
+  return foWithRuntimeLock_(
+    'Run Executive Report archive workflow',
+    function() {
+      return foRunExecutiveReportEngineProtected_();
+    }
+  );
+}
+
+function foRunExecutiveReportEngineProtected_() {
+  foAssertRuntimeLockHeld_('Run Executive Report archive workflow');
   const module = 'ExecutiveReportingEngine';
 
   try {

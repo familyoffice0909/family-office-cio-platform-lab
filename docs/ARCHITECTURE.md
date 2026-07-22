@@ -51,18 +51,35 @@ and [ADR-004](adr/ADR-004-REGISTRY-AUTHORITY.md).
 #### Runtime safety (reduced scope)
 
 Governed Dashboard and Ledger access flows through `foDashboard_()` and
-`foLedger_()` in `SpreadsheetService.js`. The two direct
-`SpreadsheetApp.openById()` calls intentionally remain only at that adapter
+`foLedger_()` in `SpreadsheetService.js`. The single direct
+`SpreadsheetApp.openById()` call intentionally remains only at that adapter
 boundary because the Apps Script API must perform the physical workbook open.
 `RuntimeSafety.js` validates the environment-bound Script Property ID before
-the open and verifies the returned workbook identity afterward. No direct
+the open, verifies the returned workbook identity afterward, and requires the
+workbook-resident `FO_RUNTIME_ENVIRONMENT` and `FO_RUNTIME_WORKBOOK_ROLE`
+named ranges to match the configured environment and workbook role. No direct
 `SpreadsheetApp.openByUrl()` access remains.
 
-The runtime lock serializes only the explicitly protected Autonomous CIO
-Orchestrator, Production Certification, and report-archive workflows, including
-their nested protected service calls. Other mutating execution paths are not
-represented as lock-protected, so this reduced scope is not a script-wide
-locking guarantee.
+Read authorization through `foDashboardRead_()` and `foLedgerRead_()` validates
+configuration, identity, and workbook binding without requiring Production write
+enablement. The mixed-use legacy `foDashboard_()` and `foLedger_()` accessors
+retain write authorization for backward compatibility, and write authorization
+additionally requires `FO_PRODUCTION_WRITE_ENABLED=TRUE` in Production. The
+legacy `foAssertRuntimeSafety_()` helper also retains write-assertion semantics.
+
+The explicit runtime-lock inventory contains only:
+
+- `foRunAutonomousCioOrchestrator()`
+- `foRunProductionCertification()`
+- `foArchiveReport()`
+- `foRunProductionCertificationWave311()`
+- `foRunExecutiveReportEngine()` as the Executive Report archive workflow
+- `foRunWeeklyCioReportA240()` as the Weekly CIO Report archive workflow
+
+Root protected calls validate both governed workbook bindings before invoking
+their callback; nested protected calls join the existing lock. Other mutating
+execution paths are not represented as lock-protected, so this reduced scope is
+not a script-wide locking or governed-writer guarantee.
 
 ### 2. Portfolio intelligence
 

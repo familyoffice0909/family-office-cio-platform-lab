@@ -9,6 +9,16 @@
  */
 
 function foRunProductionCertificationWave311(context) {
+  return foWithRuntimeLock_(
+    'Run Production Certification Wave311',
+    function() {
+      return foRunProductionCertificationWave311Protected_(context);
+    }
+  );
+}
+
+function foRunProductionCertificationWave311Protected_(context) {
+  foAssertRuntimeLockHeld_('Run Production Certification Wave311');
   const module = 'ProductionCertificationEngineWave311';
   const dashboard = foDashboard_();
   const certificationRunId = foNowId_('CERT-RUN');

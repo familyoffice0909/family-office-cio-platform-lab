@@ -13,7 +13,11 @@
 - [ ] Add `FO_ENVIRONMENT` Script Property (`LAB` or `PRODUCTION`)
 - [ ] Add `FO_DASHBOARD_SPREADSHEET_ID` Script Property
 - [ ] Add `FO_LEDGER_SPREADSHEET_ID` Script Property
+- [ ] In each governed workbook, create single-cell named range `FO_RUNTIME_ENVIRONMENT` with `LAB` or `PRODUCTION`
+- [ ] In the Dashboard workbook, create single-cell named range `FO_RUNTIME_WORKBOOK_ROLE` with `DASHBOARD`
+- [ ] In the Ledger workbook, create single-cell named range `FO_RUNTIME_WORKBOOK_ROLE` with `LEDGER`
 - [ ] For Production only, set `FO_PRODUCTION_WRITE_ENABLED` to `TRUE` through the governed production setup process
+- [ ] Follow [Runtime Configuration and Migration](docs/operations/RUNTIME-CONFIGURATION-AND-MIGRATION.md) before deployment
 - [ ] Add `CLASPRC_JSON` GitHub secret
 - [ ] Add `CLASP_JSON` GitHub secret
 - [ ] Run the CI workflow
