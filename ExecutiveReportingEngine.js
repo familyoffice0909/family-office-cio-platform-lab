@@ -86,6 +86,8 @@ function foRunExecutiveReportEngine() {
       new Date()
     ]);
 
+    foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId);
+
     rows.push([
       'Executive Summary',
       'Actions Requiring Review',
@@ -333,6 +335,62 @@ function foAppendDecisionSection_(rows, sectionName, decisions, actions, reportI
       new Date()
     ]);
   });
+}
+
+
+function foAppendPortfolioOptimizationExecutiveRows_(dashboard, rows, reportId) {
+  const sheet = dashboard.getSheetByName(
+    FO_SHEETS.PORTFOLIO_OPTIMIZATION_SUMMARY
+  );
+  if (!sheet || sheet.getLastRow() < 2) return;
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const metrics = {};
+  values.slice(1).forEach(function(row) {
+    const metric = String(foGetVal_(row, headers, 'Metric') || '').trim();
+    if (metric) metrics[metric] = foGetVal_(row, headers, 'Value');
+  });
+
+  rows.push([
+    'Portfolio Optimization Summary',
+    'Portfolio Directive',
+    metrics['Portfolio Directive'] || 'NOT AVAILABLE',
+    '',
+    '',
+    'Weight-based optimization; no cash or trade execution assumed.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Optimization Summary',
+    'Funded / Eligible Candidates',
+    String(metrics['Funded Candidate Count'] || 0) + ' / ' +
+      String(metrics['Eligible Candidate Count'] || 0),
+    '',
+    '',
+    'Candidates receiving a positive incremental target weight.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
+
+  rows.push([
+    'Portfolio Optimization Summary',
+    'Optimized Incremental Weight',
+    metrics['Optimized Incremental Weight'] || 0,
+    '',
+    '',
+    'Aggregate recommended incremental portfolio weight across eligible candidates.',
+    reportId,
+    FO_CONFIG.PLATFORM_VERSION,
+    FO_CONFIG.BASELINE,
+    new Date()
+  ]);
 }
 
 function foArchiveExecutiveReport_(dashboard, reportId, summary) {
