@@ -40,6 +40,7 @@ function foRunAutonomousCioOrchestratorProtected_() {
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Materiality', foGetModule('PORTFOLIO_MATERIALITY')));
     steps.push(foRunOrchestratorStep_(runId, 'Capital Deployment Priority', foGetModule('CAPITAL_DEPLOYMENT')));
     steps.push(foRunOrchestratorStep_(runId, 'Portfolio Snapshot', foGetModule('PORTFOLIO')));
+    steps.push(foRunOrchestratorStep_(runId, 'Portfolio Optimization Intelligence', foGetModule('PORTFOLIO_OPTIMIZATION')));
     steps.push(foRunOrchestratorStep_(runId, 'Market Intelligence', foGetModule('MARKET')));
     steps.push(foRunOrchestratorStep_(runId, 'CIO Decision Engine', foGetModule('CIO')));
     steps.push(foRunOrchestratorStep_(runId, 'Executive Report', foGetModule('REPORT')));

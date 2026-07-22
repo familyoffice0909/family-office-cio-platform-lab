@@ -16,6 +16,7 @@ const FO_MODULES = {
   BUY_ZONE: foRunBuyZoneIntelligence,
   PORTFOLIO_MATERIALITY: foRunPortfolioMaterialityEngine,
   CAPITAL_DEPLOYMENT: foRunCapitalDeploymentPriorityEngine,
+  PORTFOLIO_OPTIMIZATION: foRunPortfolioOptimizationIntelligence,
   PRODUCTION_CERTIFICATION: foRunProductionCertificationWave311,
   PORTFOLIO: foBuildPortfolioSnapshot,
   MARKET: foRunMarketIntelligence,
