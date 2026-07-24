@@ -27,6 +27,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- Added fail-closed executive-report write-back verification for the Portfolio Snapshot, Dashboard archive, and Investment Ledger Report Archive in Reporting Engine Enhancement v3.0.1
+- Standardized persistence status semantics so expected non-events are not reported as failures
 - Reconciled repository metadata, static tests, validation, and CI with the released `v1.3.0` / `CB-002` baseline in wave R1.3.0.1
 
 ### Added

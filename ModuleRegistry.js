@@ -21,7 +21,7 @@ const FO_MODULES = {
   PORTFOLIO: foBuildPortfolioSnapshot,
   MARKET: foRunMarketIntelligence,
   CIO: foRunCioDecisionEngine,
-  REPORT: foRunExecutiveReportEngine,
+  REPORT: foRunExecutiveReportProductionReady,
   DASHBOARD: foRunExecutiveDashboardEngine
 };
 
