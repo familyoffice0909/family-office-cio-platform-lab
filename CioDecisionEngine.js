@@ -41,6 +41,7 @@ function foRunCioDecisionEngine() {
         materialityScore: foNum_(foGetVal_(row, headers, 'Materiality Score')),
         riskRating: foGetVal_(row, headers, 'Risk Rating'),
         recommendation: foGetVal_(row, headers, 'Recommendation'),
+        priorityLevel: foGetVal_(row, headers, 'Priority Level'),
         cioReadiness: foNum_(foGetVal_(row, headers, 'CIO Readiness'))
       };
 
@@ -110,6 +111,17 @@ function foRunCioDecisionEngine() {
   }
 }
 
+
+function foDecision_(action, priority, deployment, review, reason) {
+  return {
+    cioAction: action,
+    priority: priority,
+    deploymentGuidance: deployment,
+    requiresReview: review,
+    reason: reason
+  };
+}
+
 function foEvaluateCioDecision_(record) {
   const ticker = String(record.ticker || '').toUpperCase();
   const buyZone = Number(record.buyZoneConfidence || 0);
@@ -117,50 +129,94 @@ function foEvaluateCioDecision_(record) {
   const materiality = Number(record.materialityScore || 0);
   const readiness = Number(record.cioReadiness || 0);
   const risk = String(record.riskRating || '').toUpperCase();
+  const recommendation = String(record.recommendation || '').trim().toUpperCase();
+
+  const isPositiveRecommendation =
+    recommendation === 'BUY' ||
+    recommendation === 'STRONG BUY' ||
+    recommendation === 'ACCUMULATE';
+
+
+  const hasRecommendationConflict =
+    isPositiveRecommendation &&
+    risk === 'HIGH';
   const marketValue = Number(record.marketValue || 0);
+  const priorityLevel = String(record.priorityLevel || '').trim();
 
   let action = 'NO ACTION';
-  let priority = 'Low';
+  let priority = priorityLevel || 'Low';
   let deployment = 'No deployment recommended.';
   let requiresReview = 'No';
   let reason = 'Default decision rule applied.';
 
-  if (ticker === 'QNC' && readiness >= 90 && risk === 'HIGH') {
-    action = 'DEPLOY CAPITAL WITH LIMITS';
-    priority = 'Critical';
-    deployment = 'Consider staged deployment only. Confirm concentration and liquidity limits first.';
-    requiresReview = 'Yes';
-    reason = 'QNC has very high readiness but high risk, requiring controlled deployment.';
-  } else if (readiness >= 88 && risk === 'LOW') {
-    action = 'BUY / ADD';
-    priority = 'High';
-    deployment = 'Eligible for capital deployment within portfolio allocation limits.';
-    requiresReview = 'No';
-    reason = 'High readiness and low risk support CIO buy action.';
-  } else if (readiness >= 82 && risk === 'MEDIUM') {
-    action = 'SATELLITE BUY';
-    priority = 'High';
-    deployment = 'Eligible only as satellite exposure. Keep allocation limited.';
-    requiresReview = 'Yes';
-    reason = 'Strong opportunity but medium risk requires allocation discipline.';
+  if (hasRecommendationConflict) {
+    return foDecision_(
+      'EXECUTIVE REVIEW',
+      'Critical',
+      'Recommendation conflicts with HIGH risk. Manual CIO review required.',
+      'Yes',
+      'Positive recommendation conflicts with HIGH risk rating.'
+    );
+  } else if (ticker === 'QNC' && readiness >= 90 && risk === 'HIGH') {
+    return foDecision_(
+      'DEPLOY CAPITAL WITH LIMITS',
+      'Critical',
+      'Consider staged deployment only. Confirm concentration and liquidity limits first.',
+      'Yes',
+      'QNC has very high readiness but high risk, requiring controlled deployment.'
+    );
+  } else if (
+    readiness >= 88 &&
+    risk === 'LOW' &&
+    conviction >= 80 &&
+    buyZone >= 80 &&
+    (
+      isPositiveRecommendation
+    )
+  ) {
+    return foDecision_(
+      'BUY / ADD',
+      priority,
+      'Eligible for capital deployment within portfolio allocation limits.',
+      'No',
+      'High readiness and low risk support CIO buy action.'
+    );
+  } else if (
+    readiness >= 82 &&
+    risk === 'MEDIUM' &&
+    materiality >= 60
+  ) {
+    return foDecision_(
+      'SATELLITE BUY',
+      priority,
+      'Eligible only as satellite exposure. Keep allocation limited.',
+      'Yes',
+      'Strong opportunity but medium risk requires allocation discipline.'
+    );
   } else if (readiness >= 80 && risk === 'HIGH') {
-    action = 'WATCH / REVIEW';
-    priority = 'Medium';
-    deployment = 'Do not deploy automatically. Review position size and downside risk.';
-    requiresReview = 'Yes';
-    reason = 'High readiness offset by high risk.';
+    return foDecision_(
+      'WATCH / REVIEW',
+      priority,
+      'Do not deploy automatically. Review position size and downside risk.',
+      'Yes',
+      'High readiness offset by high risk.'
+    );
   } else if (readiness >= 70) {
-    action = 'ACCUMULATE ON WEAKNESS';
-    priority = 'Medium';
-    deployment = 'Wait for pullback or stronger confirmation.';
-    requiresReview = 'No';
-    reason = 'Moderate readiness supports watchful accumulation.';
+    return foDecision_(
+      'ACCUMULATE ON WEAKNESS',
+      priority,
+      'Wait for pullback or stronger confirmation.',
+      'No',
+      'Moderate readiness supports watchful accumulation.'
+    );
   } else if (readiness >= 60) {
-    action = 'HOLD';
-    priority = 'Low';
-    deployment = 'Maintain current exposure. No additional capital.';
-    requiresReview = 'No';
-    reason = 'Readiness is not high enough for new capital.';
+    return foDecision_(
+      'HOLD',
+      priority,
+      'Maintain current exposure. No additional capital.',
+      'No',
+      'Readiness is not high enough for new capital.'
+    );
   }
 
   if (marketValue <= 0) {
@@ -168,13 +224,13 @@ function foEvaluateCioDecision_(record) {
     reason += ' Market value missing or zero.';
   }
 
-  return {
-    cioAction: action,
-    priority: priority,
-    deploymentGuidance: deployment,
-    requiresReview: requiresReview,
-    reason: reason
-  };
+  return foDecision_(
+    action,
+    priority,
+    deployment,
+    requiresReview,
+    reason
+  );
 }
 
 function foRunCioDecisionEngineSmokeTest() {
