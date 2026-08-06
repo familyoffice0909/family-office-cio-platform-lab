@@ -2151,13 +2151,30 @@ function foA240AppendMetricIfPresent_(add, metricMap, metric, section) {
       ? 'HIGH'
       : 'NORMAL',
     metric,
-    item.value,
+    foA240MetricDisplayValue_(metric, item.value),
     '',
     '',
     item.status,
     item.commentary,
     foA240MetricSource_('Return Attribution Summary A232', metricMap)
   );
+}
+
+function foA240MetricDisplayValue_(metric, value) {
+  const currencyMetrics = {
+    'Beginning Portfolio Market Value': true,
+    'Eligible Beginning Market Value': true
+  };
+
+  if (currencyMetrics[metric]) {
+    const amount = foA240Number_(value);
+    return 'C$' + amount.toFixed(2).replace(
+      /\B(?=(\d{3})+(?!\d))/g,
+      ','
+    );
+  }
+
+  return foA240Text_(value);
 }
 
 function foA240AppendReturnDriver_(add, metricMap, metric) {
@@ -3741,9 +3758,17 @@ function foA240FormatReportSheet_(sheet) {
     .setBackground('#1F4E78')
     .setFontColor('#FFFFFF');
   if (sheet.getLastRow() > 1) {
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, columns)
+    const bodyRows = sheet.getLastRow() - 1;
+
+    sheet.getRange(2, 1, bodyRows, columns)
       .setVerticalAlignment('top')
       .setWrap(true);
+
+    // Columns H-J contain mixed governed values and narrative text.
+    // Reset inherited spreadsheet formats so numeric values are not
+    // rendered as percentages or currency from prior report layouts.
+    sheet.getRange(2, 8, bodyRows, 3)
+      .setNumberFormat('@');
   }
   sheet.autoResizeColumns(1, columns);
   sheet.setColumnWidth(7, 220);
