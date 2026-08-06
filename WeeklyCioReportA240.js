@@ -691,7 +691,7 @@ function foA240BuildModel_(
     reportableReturn ? (returnStatus || 'AVAILABLE') : 'INSUFFICIENT COVERAGE',
     reportableReturn
       ? 'Latest consecutive-snapshot price return. This is not assumed to equal a full calendar-week return.'
-      : 'Return is suppressed because eligible return-attribution coverage is below 80% or the metric is unavailable.',
+      : 'Weekly portfolio return is not displayed because the governed snapshot comparison is not eligible or the return metric is unavailable.',
     foA240MetricSource_(
       'Return Attribution Summary A232',
       returnMetrics

@@ -1006,7 +1006,7 @@ function foA233FindCard_(cards, ticker, account) {
 function foA233ActionTrigger_(item, executionStatus) {
   if (item.priceFreshness !== 'FRESH') {
     return 'Price data is ' + (item.priceFreshness || 'UNAVAILABLE') +
-      '. Refresh market data before evaluating the entry target.';
+      '. Refresh market data before evaluating this position.';
   }
   if (executionStatus === 'BLOCKED — STALE DATA') {
     return 'Fresh market price and refreshed Buy Zone required.';
