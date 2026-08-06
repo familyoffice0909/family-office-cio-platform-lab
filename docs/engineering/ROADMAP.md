@@ -126,3 +126,26 @@ This roadmap organizes platform delivery into five institutional epics. Status i
 ## Roadmap governance
 
 The CIO prioritizes business outcomes; the Engineering Lead owns sequencing and technical dependencies; Domain Owners define acceptance criteria. Update this roadmap at planning, merge, release closure, incident follow-up, and governance review. Do not mark a wave completed from code presence alone. Link validation and release evidence when available, and carry deferred risk into an owned future item under [Engineering Governance](ENGINEERING_GOVERNANCE.md#technical-debt-policy).
+
+---
+
+## Current Production Baseline
+
+- **Version:** v3.2.11
+- **Production commit:** 9c30ad3
+- **Release:** v3.2.11 — R4.1 Runtime Context Detection
+- **Status:** RELEASED
+
+---
+
+## Current Simplified Roadmap
+
+| Workstream | Status |
+|---|---|
+| R1 — Morning Brief Certification | ✅ Complete |
+| R2 — Executive Alert Certification | ✅ Complete |
+| R3 — Weekly Strategy Review Certification | ✅ Complete |
+| R4.1 — Runtime Context Detection | ✅ Released — v3.2.11 |
+| R4.2 — Automation Connector Capability Certification | ✅ Certified — no platform code change required |
+| R5 — Market Intelligence & Data Quality Certification | 🚧 Started — Phase A architecture discovery |
+| R6 — Executive Report Presentation Certification | ⏳ Planned |
