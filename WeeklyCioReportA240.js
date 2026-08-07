@@ -2199,10 +2199,17 @@ function foA240EnsureAdditiveSchema_(dashboard, key) {
 }
 
 function foA240ExecutiveSummary_(state, deploymentAuthorization) {
+  const freshness = foA240Number_(state['Price Freshness Coverage %']);
+  const freshnessReason = freshness < 0.80
+    ? ' Execution remains blocked because decision freshness is ' +
+      foA240PercentText_(state['Price Freshness Coverage %']) + '.'
+    : '';
+
   return (
     foA240Text_(state['Portfolio Posture']) + '. ' +
     'Capital deployment: ' + deploymentAuthorization + '. ' +
-    foA240Text_(state['Primary Action']) + ' ' +
+    foA240Text_(state['Primary Action']) +
+    freshnessReason + ' ' +
     'Portfolio risk is ' + foA240Text_(state['Portfolio Risk Level']) +
     ' at ' + foA240Number_(state['Risk Score']) + '. ' +
     'Decision freshness is ' +
