@@ -2,12 +2,164 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 const packageJson = require('../package.json');
 const packageLock = require('../package-lock.json');
+
+
+describe('foA240ReadConcentrationTrend_', () => {
+  const source = read('WeeklyCioReportA240.js');
+  const context = vm.createContext({ console });
+
+  vm.runInContext(source, context, {
+    filename: 'WeeklyCioReportA240.js'
+  });
+
+  function makeSheet(rows) {
+    return {
+      getLastRow: () => rows.length,
+      getLastColumn: () => rows[0].length,
+      getDataRange: () => ({
+        getValues: () => rows,
+        getDisplayValues: () => rows
+      })
+    };
+  }
+
+  function makeSpreadsheet(rows) {
+    return {
+      getSheetByName: name =>
+        name === 'Risk History' ? makeSheet(rows) : null
+    };
+  }
+
+  const headers = [
+    'Run ID',
+    'Timestamp',
+    'Largest Position %',
+    'Top 5 %',
+    'Sector Concentration %',
+    'Currency Concentration %',
+    'Platform Version',
+    'Baseline'
+  ];
+
+  test('returns current, prior, and concentration deltas for compatible rows', () => {
+    const ss = makeSpreadsheet([
+      headers,
+      [
+        'RISK-RUN-1',
+        '2026-08-01T10:00:00Z',
+        '40',
+        '80',
+        '60',
+        '70',
+        'v3.2.12',
+        'CB-002'
+      ],
+      [
+        'RISK-RUN-2',
+        '2026-08-02T10:00:00Z',
+        '45',
+        '82',
+        '61',
+        '72',
+        'v3.2.12',
+        'CB-002'
+      ]
+    ]);
+
+    const result = context.foA240ReadConcentrationTrend_(
+      ss,
+      'v3.2.12',
+      'CB-002'
+    );
+
+    expect(result.status).toBe('AVAILABLE');
+    expect(result.currentRunId).toBe('RISK-RUN-2');
+    expect(result.priorRunId).toBe('RISK-RUN-1');
+
+    expect(result.largestPosition.current).toBe(45);
+    expect(result.largestPosition.prior).toBe(40);
+    expect(result.largestPosition.delta).toBe(5);
+
+    expect(result.top5.delta).toBe(2);
+    expect(result.sector.delta).toBe(1);
+    expect(result.currency.delta).toBe(2);
+  });
+
+  test('returns unavailable when only one compatible row exists', () => {
+    const ss = makeSpreadsheet([
+      headers,
+      [
+        'RISK-RUN-1',
+        '2026-08-01T10:00:00Z',
+        '40',
+        '80',
+        '60',
+        '70',
+        'v3.2.12',
+        'CB-002'
+      ]
+    ]);
+
+    const result = context.foA240ReadConcentrationTrend_(
+      ss,
+      'v3.2.12',
+      'CB-002'
+    );
+
+    expect(result.status).toBe('UNAVAILABLE');
+  });
+
+  test('ignores incompatible platform version and baseline rows', () => {
+    const ss = makeSpreadsheet([
+      headers,
+      [
+        'RISK-RUN-OLD-VERSION',
+        '2026-08-01T10:00:00Z',
+        '30',
+        '70',
+        '50',
+        '60',
+        'v3.2.11',
+        'CB-002'
+      ],
+      [
+        'RISK-RUN-OLD-BASELINE',
+        '2026-08-02T10:00:00Z',
+        '35',
+        '75',
+        '55',
+        '65',
+        'v3.2.12',
+        'CB-001'
+      ],
+      [
+        'RISK-RUN-CURRENT',
+        '2026-08-03T10:00:00Z',
+        '45',
+        '82',
+        '61',
+        '72',
+        'v3.2.12',
+        'CB-002'
+      ]
+    ]);
+
+    const result = context.foA240ReadConcentrationTrend_(
+      ss,
+      'v3.2.12',
+      'CB-002'
+    );
+
+    expect(result.status).toBe('UNAVAILABLE');
+  });
+});
 
 describe('Wave A2.4.0 static integration', () => {
   test('weekly report entry points are present', () => {

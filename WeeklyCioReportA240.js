@@ -136,6 +136,13 @@ function foRunWeeklyCioReportA240(options) {
       positionRiskMetadata
     );
 
+  const concentrationTrend =
+    foA240ReadConcentrationTrend_(
+      dashboard,
+      run.platformVersion,
+      run.baseline
+    );
+
   const trendAuthority =
     foA240ValidateTrendAuthority_(
       actionCards
@@ -153,6 +160,7 @@ function foRunWeeklyCioReportA240(options) {
     decisionEvidenceAlignment,
     reportingPeriodAlignment,
     concentrationAuthority,
+    concentrationTrend,
     trendAuthority,
     priorArchive,
     reportId,
@@ -269,6 +277,7 @@ function foA240BuildModel_(
   decisionEvidenceAlignment,
   reportingPeriodAlignment,
   concentrationAuthority,
+  concentrationTrend,
   trendAuthority,
   priorArchive,
   reportId,
@@ -607,13 +616,30 @@ function foA240BuildModel_(
   );
   const largestTicker = foA240Text_(state['Largest Position Ticker']);
   const largestPct = foA240Number_(state['Largest Position %']);
+
+  const largestPositionPrior =
+    concentrationTrend &&
+    concentrationTrend.status === 'AVAILABLE'
+      ? concentrationTrend.largestPosition.prior
+      : null;
+
+  const largestPositionDelta =
+    concentrationTrend &&
+    concentrationTrend.status === 'AVAILABLE'
+      ? concentrationTrend.largestPosition.delta
+      : null;
+
   add(
     'RISK',
     priority,
     'Largest Position',
     largestTicker + ' — ' + foA240PercentPointsText_(largestPct),
-    priorArchive['Largest Position Ticker'] || '',
-    '',
+    largestPositionPrior === null
+      ? ''
+      : foA240PercentPointsText_(largestPositionPrior),
+    largestPositionDelta === null
+      ? ''
+      : foA240PercentPointsText_(largestPositionDelta),
     largestPct >= 30 ? 'CRITICAL' : (largestPct >= 20 ? 'HIGH' : 'NORMAL'),
     largestTicker + ' represents ' + foA240PercentPointsText_(largestPct) +
       ' of portfolio value.',
@@ -3387,6 +3413,77 @@ function foA240SheetRows_(sheet) {
  * Verifies that runtime metadata agrees with FO_CONFIG.
  * FO_CONFIG remains the sole production-version authority.
  */
+
+function foA240ReadConcentrationTrend_(spreadsheet, platformVersion, baseline) {
+  const sheet = spreadsheet && spreadsheet.getSheetByName('Risk History');
+  const rows = foA240SheetRows_(sheet);
+
+  const currentVersion = foA240Text_(platformVersion);
+  const currentBaseline = foA240Text_(baseline);
+
+  const compatible = rows.filter(function(row) {
+    const rowVersion = foA240Text_(row['Platform Version']);
+    const rowBaseline = foA240Text_(row.Baseline);
+    const runId = foA240Text_(row['Run ID']);
+    const timestamp = foA240DateTime_(row.Timestamp);
+
+    if (!runId || !Number.isFinite(timestamp)) return false;
+    if (rowVersion !== currentVersion) return false;
+
+    if (
+      currentBaseline &&
+      rowBaseline !== currentBaseline
+    ) {
+      return false;
+    }
+
+    return true;
+  }).sort(function(a, b) {
+    return foA240DateTime_(b.Timestamp) -
+      foA240DateTime_(a.Timestamp);
+  });
+
+  if (compatible.length < 2) {
+    return {
+      status: 'UNAVAILABLE',
+      reason:
+        'No prior compatible Position Risk concentration baseline is available.'
+    };
+  }
+
+  const current = compatible[0];
+  const prior = compatible[1];
+
+  function metric_(name) {
+    const currentValue = Number(current[name]);
+    const priorValue = Number(prior[name]);
+
+    return {
+      current: Number.isFinite(currentValue)
+        ? currentValue
+        : null,
+      prior: Number.isFinite(priorValue)
+        ? priorValue
+        : null,
+      delta: foA240NumericDelta_(
+        Number.isFinite(priorValue) ? priorValue : null,
+        Number.isFinite(currentValue) ? currentValue : null
+      )
+    };
+  }
+
+  return {
+    status: 'AVAILABLE',
+    currentRunId: foA240Text_(current['Run ID']),
+    priorRunId: foA240Text_(prior['Run ID']),
+    largestPosition: metric_('Largest Position %'),
+    top5: metric_('Top 5 %'),
+    sector: metric_('Sector Concentration %'),
+    currency: metric_('Currency Concentration %')
+  };
+}
+
+
 function foA240ResolveProductionBaseline_(run) {
   const runtimeVersion = foA240Text_(
     run && run.platformVersion
