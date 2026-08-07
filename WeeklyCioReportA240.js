@@ -55,6 +55,22 @@ function foRunWeeklyCioReportA240(options) {
     'Run ID',
     decisionRunId
   );
+  const readinessMetrics = {
+    runId: decisionRunId,
+    metrics: {}
+  };
+
+  readiness.forEach(function(row) {
+    const metric = foA240Text_(row.Control);
+    if (!metric) return;
+
+    readinessMetrics.metrics[metric] = {
+      value: row.Value,
+      status: foA240Text_(row.Status),
+      commentary: foA240Text_(row.Commentary)
+    };
+  });
+
   const returnMetrics = foA240LatestMetricMap_(
     dashboard.getSheetByName(FO_SHEETS.RETURN_ATTRIBUTION_SUMMARY_A232)
   );
@@ -162,6 +178,7 @@ function foRunWeeklyCioReportA240(options) {
     concentrationAuthority,
     concentrationTrend,
     trendAuthority,
+    readinessMetrics,
     priorArchive,
     reportId,
     decisionRunId,
@@ -279,6 +296,7 @@ function foA240BuildModel_(
   concentrationAuthority,
   concentrationTrend,
   trendAuthority,
+  readinessMetrics,
   priorArchive,
   reportId,
   decisionRunId,
@@ -799,8 +817,12 @@ function foA240BuildModel_(
       priceFreshness
     ),
     priceFreshness >= 0.80 ? 'READY' : 'BLOCKED',
-    'Fresh decision inputs are required before an investment action can become executable.',
-    'Executive Decision State A233'
+    foA240MetricCommentary_(
+      readinessMetrics,
+      'Decision Price Freshness Coverage %',
+      'Fresh decision inputs are required before an investment action can become executable.'
+    ),
+    'Report Data Readiness A233'
   );
 
   add(
