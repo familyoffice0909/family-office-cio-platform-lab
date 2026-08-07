@@ -13,3 +13,5 @@ artifacts/
 backups/
 
 client_secret.json
+
+# Local OAuth credentials
