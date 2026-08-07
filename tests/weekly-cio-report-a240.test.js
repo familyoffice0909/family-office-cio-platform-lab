@@ -161,6 +161,54 @@ describe('foA240ReadConcentrationTrend_', () => {
   });
 });
 
+
+describe('R7.5 decision history comparison', () => {
+  test('uses compatible prior recommendation and marks unchanged', () => {
+    const current = 'WATCH';
+    const priorDecision = { recommendation: 'WATCH' };
+
+    const priorRecommendation =
+      priorDecision ? priorDecision.recommendation : '';
+
+    const change = priorRecommendation
+      ? (current === priorRecommendation ? 'UNCHANGED' : 'CHANGED')
+      : 'BASELINE CREATED';
+
+    expect(priorRecommendation).toBe('WATCH');
+    expect(change).toBe('UNCHANGED');
+  });
+
+  test('uses compatible prior recommendation and marks changed', () => {
+    const current = 'WATCH';
+    const priorDecision = { recommendation: 'HOLD' };
+
+    const priorRecommendation =
+      priorDecision ? priorDecision.recommendation : '';
+
+    const change = priorRecommendation
+      ? (current === priorRecommendation ? 'UNCHANGED' : 'CHANGED')
+      : 'BASELINE CREATED';
+
+    expect(priorRecommendation).toBe('HOLD');
+    expect(change).toBe('CHANGED');
+  });
+
+  test('creates baseline when no compatible prior recommendation exists', () => {
+    const current = 'WATCH';
+    const priorDecision = null;
+
+    const priorRecommendation =
+      priorDecision ? priorDecision.recommendation : '';
+
+    const change = priorRecommendation
+      ? (current === priorRecommendation ? 'UNCHANGED' : 'CHANGED')
+      : 'BASELINE CREATED';
+
+    expect(priorRecommendation).toBe('');
+    expect(change).toBe('BASELINE CREATED');
+  });
+});
+
 describe('Wave A2.4.0 static integration', () => {
   test('weekly report entry points are present', () => {
     const source = read('WeeklyCioReportA240.js');

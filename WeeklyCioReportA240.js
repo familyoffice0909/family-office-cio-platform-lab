@@ -164,6 +164,13 @@ function foRunWeeklyCioReportA240(options) {
       actionCards
     );
 
+  const decisionHistoryIndex =
+    foLoadDecisionHistoryIndex_(
+      dashboard.getSheetByName(
+        FO_SHEETS.INVESTMENT_DECISION_HISTORY
+      )
+    );
+
   const model = foA240BuildModel_(
     state,
     actionCards,
@@ -179,6 +186,7 @@ function foRunWeeklyCioReportA240(options) {
     concentrationTrend,
     trendAuthority,
     readinessMetrics,
+    decisionHistoryIndex,
     priorArchive,
     reportId,
     decisionRunId,
@@ -297,6 +305,7 @@ function foA240BuildModel_(
   concentrationTrend,
   trendAuthority,
   readinessMetrics,
+  decisionHistoryIndex,
   priorArchive,
   reportId,
   decisionRunId,
@@ -875,18 +884,33 @@ function foA240BuildModel_(
     const invalidation = isPrimaryRiskDriver
       ? 'Risk-reduction requirement ends when concentration falls below policy limits.'
       : foA240CleanNumericText_(foA240Text_(card['Invalidation Condition']));
-    const hasPriorReport = Boolean(priorArchive && priorArchive['Report ID']);
+    const decisionKey = foDecisionKey_(ticker, account);
+    const priorDecision =
+      decisionHistoryIndex &&
+      decisionHistoryIndex.compatiblePrevious
+        ? decisionHistoryIndex.compatiblePrevious[decisionKey]
+        : null;
+
+    const currentRecommendation = foA240Text_(card.Recommendation);
+    const priorRecommendation = priorDecision
+      ? foA240Text_(priorDecision.recommendation)
+      : '';
+
+    const recommendationChange = priorRecommendation
+      ? (
+          currentRecommendation === priorRecommendation
+            ? 'UNCHANGED'
+            : 'CHANGED'
+        )
+      : 'BASELINE CREATED';
+
     add(
       section,
       isPrimaryRiskDriver ? 'CRITICAL' : actionPriority,
       foA240ActionLabel_(card),
       foA240Text_(card['Execution Status']) + ' | ' + controlledAction,
-      hasPriorReport
-        ? 'Confidence ' + foA240Number_(card['Prior Confidence'])
-        : 'NOT AVAILABLE',
-      hasPriorReport
-        ? foA240Number_(card['Confidence Delta'])
-        : 'BASELINE CREATED',
+      priorRecommendation || 'NOT AVAILABLE',
+      recommendationChange,
       foA240Text_(card['Price Freshness']) + ' | ' +
         foA240Text_(card.Trend),
       'Trigger: ' + trigger +

@@ -176,7 +176,9 @@ function foDecisionStateSignature_(item) {
 function foLoadDecisionHistoryIndex_(sheet) {
   const result = {
     latest: {},
-    today: {}
+    today: {},
+    compatibleLatest: {},
+    compatiblePrevious: {}
   };
 
   if (!sheet || sheet.getLastRow() < 2) return result;
@@ -185,6 +187,8 @@ function foLoadDecisionHistoryIndex_(sheet) {
   const headers = values[0].map(String);
   const signatureIndex = headers.indexOf('State Signature');
   const eventIndex = headers.indexOf('Event Type');
+  const platformVersionIndex = headers.indexOf('Platform Version');
+  const baselineIndex = headers.indexOf('Baseline');
   const todayKey = foDecisionDateKey_(new Date());
 
   for (let row = values.length - 1; row >= 1; row--) {
@@ -229,6 +233,22 @@ function foLoadDecisionHistoryIndex_(sheet) {
       foDecisionDateKey_(timestamp) === todayKey
     ) {
       result.today[key] = record;
+    }
+
+    const compatible =
+      platformVersionIndex >= 0 &&
+      baselineIndex >= 0 &&
+      String(values[row][platformVersionIndex] || '') ===
+        String(FO_CONFIG.PLATFORM_VERSION || '') &&
+      String(values[row][baselineIndex] || '') ===
+        String(FO_CONFIG.BASELINE || '');
+
+    if (compatible) {
+      if (!result.compatibleLatest[key]) {
+        result.compatibleLatest[key] = record;
+      } else if (!result.compatiblePrevious[key]) {
+        result.compatiblePrevious[key] = record;
+      }
     }
   }
 
