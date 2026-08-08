@@ -180,6 +180,148 @@ describe('Wave R1.3.0.2 runtime guard', () => {
   });
 });
 
+
+describe('R8.2 SpreadsheetService shared row primitives', () => {
+  function loadSpreadsheetService() {
+    const context = vm.createContext({ console });
+
+    vm.runInContext(
+      read('SpreadsheetService.js'),
+      context,
+      { filename: 'SpreadsheetService.js' }
+    );
+
+    return context;
+  }
+
+  function makeSheet(values) {
+    return {
+      getDataRange: () => ({
+        getValues: () => values
+      })
+    };
+  }
+
+  test('foSheetRows_ converts physical sheet rows to header-keyed objects', () => {
+    const context = loadSpreadsheetService();
+
+    const sheet = makeSheet([
+      ['Run ID', 'Metric', 'Value'],
+      ['RUN-1', 'A', 10],
+      ['RUN-2', 'B', 20]
+    ]);
+
+    expect(context.foSheetRows_(sheet)).toEqual([
+      {
+        'Run ID': 'RUN-1',
+        Metric: 'A',
+        Value: 10
+      },
+      {
+        'Run ID': 'RUN-2',
+        Metric: 'B',
+        Value: 20
+      }
+    ]);
+  });
+
+  test('foSheetRows_ ignores blank headers while preserving physical row order', () => {
+    const context = loadSpreadsheetService();
+
+    const sheet = makeSheet([
+      ['Run ID', '', 'Value'],
+      ['RUN-1', 'ignored-1', 10],
+      ['RUN-2', 'ignored-2', 20]
+    ]);
+
+    expect(context.foSheetRows_(sheet)).toEqual([
+      {
+        'Run ID': 'RUN-1',
+        Value: 10
+      },
+      {
+        'Run ID': 'RUN-2',
+        Value: 20
+      }
+    ]);
+  });
+
+  test('foSheetRows_ returns empty rows for unavailable or header-only sheets', () => {
+    const context = loadSpreadsheetService();
+
+    expect(context.foSheetRows_(null)).toEqual([]);
+
+    expect(
+      context.foSheetRows_(
+        makeSheet([
+          ['Run ID', 'Value']
+        ])
+      )
+    ).toEqual([]);
+  });
+
+  test('foLatestRows_ uses the run represented by the final physical row', () => {
+    const context = loadSpreadsheetService();
+
+    const sheet = makeSheet([
+      ['Run ID', 'Value'],
+      ['RUN-1', 10],
+      ['RUN-2', 20],
+      ['RUN-1', 30]
+    ]);
+
+    expect(
+      context.foLatestRows_(sheet, 'Run ID')
+    ).toEqual({
+      runId: 'RUN-1',
+      rows: [
+        {
+          'Run ID': 'RUN-1',
+          Value: 10
+        },
+        {
+          'Run ID': 'RUN-1',
+          Value: 30
+        }
+      ]
+    });
+  });
+
+  test('foLatestRows_ fails closed when run identity is unavailable', () => {
+    const context = loadSpreadsheetService();
+
+    const noRows = makeSheet([
+      ['Run ID', 'Value']
+    ]);
+
+    expect(
+      context.foLatestRows_(noRows, 'Run ID')
+    ).toEqual({
+      runId: '',
+      rows: []
+    });
+
+    const rows = makeSheet([
+      ['Run ID', 'Value'],
+      ['RUN-1', 10]
+    ]);
+
+    expect(
+      context.foLatestRows_(rows, '')
+    ).toEqual({
+      runId: '',
+      rows: []
+    });
+
+    expect(
+      context.foLatestRows_(rows, 'Unknown Header')
+    ).toEqual({
+      runId: '',
+      rows: []
+    });
+  });
+});
+
 describe('Morning Brief preflight', () => {
   test('succeeds when all required Dashboard and Ledger sheets exist', () => {
     const runtime = createMorningBriefPreflightRuntime();

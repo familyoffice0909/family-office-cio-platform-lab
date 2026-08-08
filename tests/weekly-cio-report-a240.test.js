@@ -12,8 +12,13 @@ const packageLock = require('../package-lock.json');
 
 
 describe('foA240ReadConcentrationTrend_', () => {
+  const spreadsheetServiceSource = read('SpreadsheetService.js');
   const source = read('WeeklyCioReportA240.js');
   const context = vm.createContext({ console });
+
+  vm.runInContext(spreadsheetServiceSource, context, {
+    filename: 'SpreadsheetService.js'
+  });
 
   vm.runInContext(source, context, {
     filename: 'WeeklyCioReportA240.js'

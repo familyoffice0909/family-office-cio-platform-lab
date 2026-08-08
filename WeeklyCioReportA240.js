@@ -3629,15 +3629,7 @@ function foA240MetricSource_(name, map) {
 }
 
 function foA240LatestRows_(sheet, runHeader) {
-  const rows = foA240SheetRows_(sheet);
-  if (!rows.length) return {runId: '', rows: []};
-  const latestRunId = foA240Text_(rows[rows.length - 1][runHeader]);
-  return {
-    runId: latestRunId,
-    rows: rows.filter(function(row) {
-      return foA240Text_(row[runHeader]) === latestRunId;
-    })
-  };
+  return foLatestRows_(sheet, runHeader);
 }
 
 function foA240RowsForRun_(sheet, runHeader, runId) {
@@ -3648,16 +3640,7 @@ function foA240RowsForRun_(sheet, runHeader, runId) {
 }
 
 function foA240SheetRows_(sheet) {
-  if (!sheet || sheet.getLastRow() < 2) return [];
-  const values = sheet.getDataRange().getValues();
-  const headers = values[0].map(String);
-  return values.slice(1).map(function(row) {
-    const object = {};
-    headers.forEach(function(header, index) {
-      object[header] = row[index];
-    });
-    return object;
-  });
+  return foSheetRows_(sheet);
 }
 
 
