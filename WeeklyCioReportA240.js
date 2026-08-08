@@ -21,39 +21,45 @@ function foRunWeeklyCioReportA240(options) {
     foRunExecutiveDecisionIntegrationA233();
   }
 
-  const stateSheet = dashboard.getSheetByName(
-    FO_SHEETS.EXECUTIVE_DECISION_STATE_A233
-  );
-  const stateRows = foA240LatestRows_(stateSheet, 'Run ID');
-  const state = stateRows.rows[0] || null;
+  const executiveEvidence =
+    foGetA233ExecutiveEvidence_(dashboard);
 
-  if (!state || !stateRows.runId) {
+  const stateRows = {
+    runId: executiveEvidence.decisionState.runId,
+    rows: executiveEvidence.decisionState.rows
+  };
+
+  if (!stateRows.runId || !stateRows.rows.length) {
     throw new Error(
-      'Executive Decision State A233 is unavailable. Run A2.3.3 first.'
+      'Weekly CIO Report A240 requires Executive Decision State A233 evidence.'
     );
   }
 
+  const decisionRunId = stateRows.runId;
+  const state = stateRows.rows[0] || null;
+
   const run = foCreateRunMetadataA230('WEEKLY-CIO');
   const reportId = run.runId;
-  const decisionRunId = stateRows.runId;
   const weekEnding = foA240ResolveWeekEnding_(
     settings.weekEnding || run.timestamp
   );
 
-  const actionCards = foA240RowsForRun_(
-    dashboard.getSheetByName(FO_SHEETS.REPORT_ACTION_CARDS_A233),
-    'Run ID',
-    decisionRunId
+  const actionCards = executiveEvidence.actionCards.rows.filter(
+    function(row) {
+      return foA240Text_(row['Run ID']) === decisionRunId;
+    }
   );
-  const conflicts = foA240RowsForRun_(
-    dashboard.getSheetByName(FO_SHEETS.REPORT_CONFLICTS_A233),
-    'Run ID',
-    decisionRunId
+
+  const conflicts = executiveEvidence.conflicts.rows.filter(
+    function(row) {
+      return foA240Text_(row['Run ID']) === decisionRunId;
+    }
   );
-  const readiness = foA240RowsForRun_(
-    dashboard.getSheetByName(FO_SHEETS.REPORT_DATA_READINESS_A233),
-    'Run ID',
-    decisionRunId
+
+  const readiness = executiveEvidence.dataReadiness.rows.filter(
+    function(row) {
+      return foA240Text_(row['Run ID']) === decisionRunId;
+    }
   );
   const readinessMetrics = {
     runId: decisionRunId,

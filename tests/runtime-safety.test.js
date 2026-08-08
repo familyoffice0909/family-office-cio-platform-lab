@@ -181,6 +181,375 @@ describe('Wave R1.3.0.2 runtime guard', () => {
 });
 
 
+
+
+describe('R8.3 A233 adapter compatibility', () => {
+
+  test('anchors ancillary evidence to decision state even when ancillary sheets have newer runs', () => {
+    const context = loadRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric'],
+        ['EXEC-1', '2026-08-08T10:00:00Z', 'OLD'],
+        ['EXEC-2', '2026-08-08T11:00:00Z', 'CURRENT']
+      ]),
+
+      'Report Action Cards A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Action'],
+        ['EXEC-2', '2026-08-08T11:01:00Z', 'CURRENT'],
+        ['EXEC-3', '2026-08-08T12:01:00Z', 'UNRELATED NEWER RUN']
+      ]),
+
+      'Report Conflicts A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Conflict'],
+        ['EXEC-2', '2026-08-08T11:02:00Z', 'CURRENT'],
+        ['EXEC-4', '2026-08-08T12:02:00Z', 'UNRELATED NEWER RUN']
+      ]),
+
+      'Report Data Readiness A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric'],
+        ['EXEC-2', '2026-08-08T11:03:00Z', 'CURRENT'],
+        ['EXEC-5', '2026-08-08T12:03:00Z', 'UNRELATED NEWER RUN']
+      ])
+    });
+
+    const evidence = context.foGetA233ExecutiveEvidence_(dashboard);
+
+    expect(evidence.decisionState.runId).toBe('EXEC-2');
+    expect(evidence.actionCards.runId).toBe('EXEC-2');
+    expect(evidence.conflicts.runId).toBe('EXEC-2');
+    expect(evidence.dataReadiness.runId).toBe('EXEC-2');
+
+    expect(evidence.actionCards.rows).toEqual([
+      {
+        'Run ID': 'EXEC-2',
+        Timestamp: '2026-08-08T11:01:00Z',
+        Action: 'CURRENT'
+      }
+    ]);
+
+    expect(evidence.conflicts.rows).toEqual([
+      {
+        'Run ID': 'EXEC-2',
+        Timestamp: '2026-08-08T11:02:00Z',
+        Conflict: 'CURRENT'
+      }
+    ]);
+
+    expect(evidence.dataReadiness.rows).toEqual([
+      {
+        'Run ID': 'EXEC-2',
+        Timestamp: '2026-08-08T11:03:00Z',
+        Metric: 'CURRENT'
+      }
+    ]);
+  });
+
+  function loadRuntime() {
+    const context = vm.createContext({
+      console,
+      FO_SHEETS: {
+        EXECUTIVE_DECISION_STATE_A233: 'Executive Decision State A233',
+        REPORT_ACTION_CARDS_A233: 'Report Action Cards A233',
+        REPORT_CONFLICTS_A233: 'Report Conflicts A233',
+        REPORT_DATA_READINESS_A233: 'Report Data Readiness A233'
+      }
+    });
+
+    vm.runInContext(
+      read('SpreadsheetService.js'),
+      context,
+      { filename: 'SpreadsheetService.js' }
+    );
+
+    vm.runInContext(
+      read('ExecutiveEvidenceService.js'),
+      context,
+      { filename: 'ExecutiveEvidenceService.js' }
+    );
+
+    return context;
+  }
+
+  function makeSheet(values) {
+    return {
+      getDataRange: () => ({
+        getValues: () => values
+      })
+    };
+  }
+
+  function makeDashboard(sheets) {
+    return {
+      getSheetByName: name => sheets[name] || null
+    };
+  }
+
+  test('shared decision-state resolver preserves legacy final-physical-run semantics', () => {
+    const context = loadRuntime();
+
+    const sheet = makeSheet([
+      ['Run ID', 'Timestamp', 'Metric', 'Value'],
+      ['EXEC-1', '2026-08-08T09:00:00Z', 'Portfolio Posture', 'HOLD'],
+      ['EXEC-2', '2026-08-08T10:00:00Z', 'Portfolio Posture', 'RISK REDUCTION FIRST'],
+      ['EXEC-1', '2026-08-08T11:00:00Z', 'Execution Status', 'BLOCKED']
+    ]);
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': sheet
+    });
+
+    const legacy = context.foLatestRows_(sheet, 'Run ID');
+
+    const shared = context.foGetExecutiveEvidenceSource_(
+      'decisionState',
+      dashboard
+    );
+
+    expect(shared.runId).toBe(legacy.runId);
+    expect(shared.rows).toEqual(legacy.rows);
+  });
+
+  test('shared A233 sources preserve same-run filtering required by Weekly', () => {
+    const context = loadRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric'],
+        ['EXEC-1', '2026-08-08T10:00:00Z', 'Portfolio Posture'],
+        ['EXEC-2', '2026-08-08T11:00:00Z', 'Portfolio Posture']
+      ]),
+
+      'Report Action Cards A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Action'],
+        ['EXEC-1', '2026-08-08T10:01:00Z', 'OLD'],
+        ['EXEC-2', '2026-08-08T11:01:00Z', 'CURRENT']
+      ]),
+
+      'Report Conflicts A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Conflict'],
+        ['EXEC-1', '2026-08-08T10:02:00Z', 'OLD'],
+        ['EXEC-2', '2026-08-08T11:02:00Z', 'CURRENT']
+      ]),
+
+      'Report Data Readiness A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric'],
+        ['EXEC-1', '2026-08-08T10:03:00Z', 'OLD'],
+        ['EXEC-2', '2026-08-08T11:03:00Z', 'CURRENT']
+      ])
+    });
+
+    const evidence = context.foGetA233ExecutiveEvidence_(dashboard);
+
+    const decisionRunId = evidence.decisionState.runId;
+
+    expect(decisionRunId).toBe('EXEC-2');
+
+    expect(
+      evidence.actionCards.rows.every(
+        row => row['Run ID'] === decisionRunId
+      )
+    ).toBe(true);
+
+    expect(
+      evidence.conflicts.rows.every(
+        row => row['Run ID'] === decisionRunId
+      )
+    ).toBe(true);
+
+    expect(
+      evidence.dataReadiness.rows.every(
+        row => row['Run ID'] === decisionRunId
+      )
+    ).toBe(true);
+  });
+
+  test('shared evidence path does not synthesize missing A233 evidence', () => {
+    const context = loadRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp']
+      ])
+    });
+
+    const evidence = context.foGetA233ExecutiveEvidence_(dashboard);
+
+    expect(evidence.decisionState.available).toBe(false);
+    expect(evidence.decisionState.runId).toBe('');
+    expect(evidence.decisionState.rows).toEqual([]);
+  });
+});
+
+describe('R8.3 ExecutiveEvidenceService resolver', () => {
+  function loadEvidenceRuntime() {
+    const context = vm.createContext({
+      console,
+      FO_SHEETS: {
+        EXECUTIVE_DECISION_STATE_A233: 'Executive Decision State A233',
+        REPORT_ACTION_CARDS_A233: 'Report Action Cards A233',
+        REPORT_CONFLICTS_A233: 'Report Conflicts A233',
+        REPORT_DATA_READINESS_A233: 'Report Data Readiness A233'
+      }
+    });
+
+    vm.runInContext(
+      read('SpreadsheetService.js'),
+      context,
+      { filename: 'SpreadsheetService.js' }
+    );
+
+    vm.runInContext(
+      read('ExecutiveEvidenceService.js'),
+      context,
+      { filename: 'ExecutiveEvidenceService.js' }
+    );
+
+    return context;
+  }
+
+  function makeSheet(values) {
+    return {
+      getDataRange: () => ({
+        getValues: () => values
+      })
+    };
+  }
+
+  function makeDashboard(sheets) {
+    return {
+      getSheetByName: name => sheets[name] || null
+    };
+  }
+
+  test('resolver selects the run represented by the final physical row', () => {
+    const context = loadEvidenceRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric', 'Value'],
+        ['RUN-1', '2026-08-08T10:00:00Z', 'A', 1],
+        ['RUN-2', '2026-08-08T11:00:00Z', 'B', 2],
+        ['RUN-1', '2026-08-08T12:00:00Z', 'C', 3]
+      ])
+    });
+
+    const result = context.foGetExecutiveEvidenceSource_(
+      'decisionState',
+      dashboard
+    );
+
+    expect(result.available).toBe(true);
+    expect(result.runId).toBe('RUN-1');
+    expect(result.rows).toEqual([
+      {
+        'Run ID': 'RUN-1',
+        Timestamp: '2026-08-08T10:00:00Z',
+        Metric: 'A',
+        Value: 1
+      },
+      {
+        'Run ID': 'RUN-1',
+        Timestamp: '2026-08-08T12:00:00Z',
+        Metric: 'C',
+        Value: 3
+      }
+    ]);
+  });
+
+  test('resolver normalizes timestamp and preserves selected metadata field', () => {
+    const context = loadEvidenceRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric'],
+        ['RUN-9', '2026-08-08T13:45:00Z', 'Portfolio Posture']
+      ])
+    });
+
+    const result = context.foGetExecutiveEvidenceSource_(
+      'decisionState',
+      dashboard
+    );
+
+    expect(result.timestamp).toBe('2026-08-08T13:45:00Z');
+    expect(result.rawMetadata.runIdField).toBe('Run ID');
+    expect(result.rawMetadata.timestampField).toBe('Timestamp');
+  });
+
+  test('resolver fails closed when source sheet is unavailable', () => {
+    const context = loadEvidenceRuntime();
+    const dashboard = makeDashboard({});
+
+    const result = context.foGetExecutiveEvidenceSource_(
+      'decisionState',
+      dashboard
+    );
+
+    expect(result.available).toBe(false);
+    expect(result.runId).toBe('');
+    expect(result.rows).toEqual([]);
+    expect(result.diagnostics).toContain('SOURCE_UNAVAILABLE');
+  });
+
+  test('resolver fails closed when current run identity is unavailable', () => {
+    const context = loadEvidenceRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp', 'Metric'],
+        ['', '2026-08-08T13:45:00Z', 'Portfolio Posture']
+      ])
+    });
+
+    const result = context.foGetExecutiveEvidenceSource_(
+      'decisionState',
+      dashboard
+    );
+
+    expect(result.available).toBe(false);
+    expect(result.runId).toBe('');
+    expect(result.rows).toEqual([]);
+    expect(result.diagnostics).toContain('RUN_ID_UNAVAILABLE');
+  });
+
+  test('A233 aggregate resolves all four governed evidence sources', () => {
+    const context = loadEvidenceRuntime();
+
+    const dashboard = makeDashboard({
+      'Executive Decision State A233': makeSheet([
+        ['Run ID', 'Timestamp'],
+        ['DEC-1', '2026-08-08T10:00:00Z']
+      ]),
+      'Report Action Cards A233': makeSheet([
+        ['Run ID', 'Timestamp'],
+        ['DEC-1', '2026-08-08T10:01:00Z']
+      ]),
+      'Report Conflicts A233': makeSheet([
+        ['Run ID', 'Timestamp'],
+        ['DEC-1', '2026-08-08T10:02:00Z']
+      ]),
+      'Report Data Readiness A233': makeSheet([
+        ['Run ID', 'Timestamp'],
+        ['DEC-1', '2026-08-08T10:03:00Z']
+      ])
+    });
+
+    const result = context.foGetA233ExecutiveEvidence_(dashboard);
+
+    expect(result.decisionState.available).toBe(true);
+    expect(result.actionCards.available).toBe(true);
+    expect(result.conflicts.available).toBe(true);
+    expect(result.dataReadiness.available).toBe(true);
+
+    expect(result.decisionState.runId).toBe('DEC-1');
+    expect(result.actionCards.runId).toBe('DEC-1');
+    expect(result.conflicts.runId).toBe('DEC-1');
+    expect(result.dataReadiness.runId).toBe('DEC-1');
+  });
+});
+
 describe('R8.2 SpreadsheetService shared row primitives', () => {
   function loadSpreadsheetService() {
     const context = vm.createContext({ console });

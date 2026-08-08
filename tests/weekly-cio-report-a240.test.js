@@ -13,11 +13,24 @@ const packageLock = require('../package-lock.json');
 
 describe('foA240ReadConcentrationTrend_', () => {
   const spreadsheetServiceSource = read('SpreadsheetService.js');
+  const executiveEvidenceServiceSource = read('ExecutiveEvidenceService.js');
   const source = read('WeeklyCioReportA240.js');
-  const context = vm.createContext({ console });
+  const context = vm.createContext({
+    console,
+    FO_SHEETS: {
+      EXECUTIVE_DECISION_STATE_A233: 'Executive Decision State A233',
+      REPORT_ACTION_CARDS_A233: 'Report Action Cards A233',
+      REPORT_CONFLICTS_A233: 'Report Conflicts A233',
+      REPORT_DATA_READINESS_A233: 'Report Data Readiness A233'
+    }
+  });
 
   vm.runInContext(spreadsheetServiceSource, context, {
     filename: 'SpreadsheetService.js'
+  });
+
+  vm.runInContext(executiveEvidenceServiceSource, context, {
+    filename: 'ExecutiveEvidenceService.js'
   });
 
   vm.runInContext(source, context, {
