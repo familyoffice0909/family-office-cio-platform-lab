@@ -1,6 +1,6 @@
 {
   "name": "family-office-cio-platform",
-  "version": "3.2.13",
+  "version": "3.3.0",
   "private": true,
   "description": "Institutional-grade Family Office CIO Platform for Google Apps Script and Google Sheets",
   "scripts": {
@@ -18,5 +18,5 @@
     "globals": "^16.0.0",
     "jest": "^30.0.0"
   },
-  "releaseName": "R7 Executive Report Governance and Consumer Delivery Certification"
+  "releaseName": "R8.2 Common Infrastructure Foundation"
 }

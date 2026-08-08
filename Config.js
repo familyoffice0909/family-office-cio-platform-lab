@@ -1,16 +1,16 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.2.13',
-  RELEASE_NAME: 'R7 Executive Report Governance and Consumer Delivery Certification',
+  PLATFORM_VERSION: 'v3.3.0',
+  RELEASE_NAME: 'R8.2 Common Infrastructure Foundation',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.08.07.v3213-r7',
+  BUILD: '2026.08.08.v330-r82',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.2.13',
+  ENGINE_VERSION: 'v3.3.0',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
