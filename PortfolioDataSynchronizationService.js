@@ -367,8 +367,8 @@ function foApplySynchronizedValuationEvidence_(row, headers, sourceName) {
   if (price > 0) {
     if (timestampIndex >= 0 && !row[timestampIndex]) row[timestampIndex] = new Date();
     if (sourceIndex >= 0 && !row[sourceIndex]) row[sourceIndex] = sourceName;
-    if (statusIndex >= 0 && !row[statusIndex]) row[statusIndex] = 'SOURCE_REPORTED';
-    if (basisIndex >= 0 && !row[basisIndex]) row[basisIndex] = 'SOURCE_REPORTED';
+    if (statusIndex >= 0) row[statusIndex] = 'SOURCE_REPORTED';
+    if (basisIndex >= 0) row[basisIndex] = 'SOURCE_REPORTED';
     if (valuationIndex >= 0) row[valuationIndex] = 'PARTIALLY_CERTIFIED';
     if (marketBasisIndex >= 0) row[marketBasisIndex] = 'DERIVED_FROM_PRICE';
   } else if (marketValue > 0) {

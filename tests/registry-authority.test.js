@@ -189,3 +189,27 @@ describe('Wave R1.3.1.1 Registry Authority validation', () => {
     expect(context.foDiscoverRegistries()).toHaveLength(3);
   });
 });
+
+describe('v3.4.1 TSXV provider mappings', () => {
+  let marketContext;
+
+  beforeAll(() => {
+    marketContext = vm.createContext({ console });
+
+    vm.runInContext(
+      read('MarketSymbolRegistry.js'),
+      marketContext,
+      { filename: 'MarketSymbolRegistry.js' }
+    );
+  });
+
+  test('QNC resolves through the verified TSX Venture provider symbol', () => {
+    expect(marketContext.foResolveMarketSymbol_('QNC').providerSymbol)
+      .toBe('CVE:QNC');
+  });
+
+  test('ONE resolves through the verified TSX Venture provider symbol', () => {
+    expect(marketContext.foResolveMarketSymbol_('ONE').providerSymbol)
+      .toBe('CVE:ONE');
+  });
+});

@@ -5,11 +5,11 @@
 
 const FO_MARKET_SYMBOLS = {
   QQC:  { providerSymbol: 'TSE:QQC', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
-  QNC:  { providerSymbol: 'TSE:QNC', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
+  QNC:  { providerSymbol: 'CVE:QNC', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
   BNS:  { providerSymbol: 'TSE:BNS', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
   TD:   { providerSymbol: 'TSE:TD',  exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
   ABX:  { providerSymbol: 'TSE:ABX', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
-  ONE:  { providerSymbol: 'TSE:ONE', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
+  ONE:  { providerSymbol: 'CVE:ONE', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
 
   QBTS: { providerSymbol: 'NYSE:QBTS', currency: 'USD', exchange: 'NYSE', status: 'ACTIVE' },
   RGTI: { providerSymbol: 'NASDAQ:RGTI', currency: 'USD', exchange: 'NASDAQ', status: 'ACTIVE' },
