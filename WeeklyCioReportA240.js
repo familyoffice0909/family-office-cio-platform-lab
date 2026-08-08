@@ -200,6 +200,9 @@ function foRunWeeklyCioReportA240(options) {
     run
   );
 
+  const previousReportRows =
+    foA240SheetRows_(reportSheet);
+
   foReplaceRowsA230(reportSheet, model.rows);
   foA240FormatReportSheet_(reportSheet);
   SpreadsheetApp.flush();
@@ -217,9 +220,19 @@ function foRunWeeklyCioReportA240(options) {
     : 'ANALYSIS ONLY';
 
   if (persistenceStatus === 'PERSISTED') {
-    foAppendRowsA230(archiveSheet, [
-      foA240ArchiveRow_(model, validation, run)
-    ]);
+
+    foAppendRowsA230(
+      archiveSheet,
+      [foA240ArchiveRow_(model, validation, run)]
+    );
+
+  } else {
+
+    foReplaceRowsA230(
+      reportSheet,
+      previousReportRows
+    );
+
   }
 
   return {

@@ -1130,3 +1130,79 @@ describe('R4.1 D4 Production Certification Runtime Context integration', () => {
     expect(runtimeIndex).toBeGreaterThan(entryIndex);
   });
 });
+
+describe('v3.4.2 A233 concentration basis', () => {
+  test('largest-position ticker and percentage are sourced from the same Position Risk row', () => {
+    const source = read('ExecutiveDecisionIntegrationA233.js');
+
+    expect(source).toContain(
+      "largest['Portfolio Weight %'] !== undefined"
+    );
+
+    expect(source).toContain(
+      "? largest['Portfolio Weight %']"
+    );
+
+    expect(source).toContain(
+      ": largest['Portfolio Weight']"
+    );
+
+    expect(source).not.toContain(
+      "const largestPct = foA233Number_(\n    portfolioRow['Largest Position %']"
+    );
+  });
+});
+
+describe('v3.4.2 Weekly non-destructive persistence', () => {
+  test('failed Weekly validation restores the previously persisted report rows', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    const snapshotIndex = source.indexOf(
+      'const previousReportRows ='
+    );
+
+    const candidateWriteIndex = source.indexOf(
+      'foReplaceRowsA230(reportSheet, model.rows)'
+    );
+
+    const validationIndex = source.indexOf(
+      'const validation = foRunWeeklyCioReportValidationA240'
+    );
+
+    const persistenceIndex = source.indexOf(
+      "persistenceStatus === 'PERSISTED'"
+    );
+
+    const restoreIndex = source.indexOf(
+      'foReplaceRowsA230(\n      reportSheet,\n      previousReportRows'
+    );
+
+    expect(snapshotIndex).toBeGreaterThan(-1);
+    expect(candidateWriteIndex).toBeGreaterThan(snapshotIndex);
+    expect(validationIndex).toBeGreaterThan(candidateWriteIndex);
+    expect(persistenceIndex).toBeGreaterThan(validationIndex);
+    expect(restoreIndex).toBeGreaterThan(persistenceIndex);
+  });
+
+  test('archive append remains restricted to successfully persisted Weekly reports', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    const persistedGateIndex = source.indexOf(
+      "if (persistenceStatus === 'PERSISTED')"
+    );
+
+    const archiveAppendIndex = source.indexOf(
+      'foAppendRowsA230(',
+      persistedGateIndex
+    );
+
+    const analysisOnlyRestoreIndex = source.indexOf(
+      'previousReportRows',
+      archiveAppendIndex
+    );
+
+    expect(persistedGateIndex).toBeGreaterThan(-1);
+    expect(archiveAppendIndex).toBeGreaterThan(persistedGateIndex);
+    expect(analysisOnlyRestoreIndex).toBeGreaterThan(archiveAppendIndex);
+  });
+});
