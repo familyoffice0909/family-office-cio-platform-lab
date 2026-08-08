@@ -274,6 +274,203 @@ function foRunWeeklyCioReportA240(options) {
  * Terminal-safe wrapper for clasp run-function.
  * Preserves the governed weekly report implementation and returns JSON text.
  */
+
+/**
+ * R7.7.C — Governed Weekly Retrieval API.
+ *
+ * Retrieves the newest persisted Weekly CIO report using the archive as
+ * report-identity authority, then independently verifies report rows and
+ * validation lineage before declaring the report deliverable.
+ *
+ * This function never reconstructs a report.
+ */
+function foGetLatestGovernedWeeklyReportA240() {
+  const dashboard = foDashboard_();
+
+  const reportSheet = dashboard.getSheetByName(
+    FO_SHEETS.WEEKLY_CIO_REPORT_A240
+  );
+  const archiveSheet = dashboard.getSheetByName(
+    FO_SHEETS.WEEKLY_CIO_REPORT_ARCHIVE_A240
+  );
+  const validationSheet = dashboard.getSheetByName(
+    FO_SHEETS.WEEKLY_CIO_REPORT_VALIDATION_A240
+  );
+
+  if (!reportSheet || !archiveSheet || !validationSheet) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'DATA_ACCESS_FAILURE',
+      deliverable: false,
+      reason: 'One or more governed Weekly A240 worksheets are unavailable.'
+    };
+  }
+
+  const archiveRows = foA240SheetRows_(archiveSheet);
+
+  if (!archiveRows.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'PERSISTENCE_FAILURE',
+      deliverable: false,
+      reason: 'No persisted Weekly CIO archive record is available.'
+    };
+  }
+
+  // Archive is append-only; newest persisted archive record is authoritative.
+  const archive = archiveRows[archiveRows.length - 1];
+
+  const reportId = String(archive['Report ID'] || '').trim();
+  const decisionRunId = String(archive['Decision Run ID'] || '').trim();
+  const archiveValidationStatus = String(
+    archive['Validation Status'] || ''
+  ).trim().toUpperCase();
+
+  if (!reportId || !decisionRunId) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'GOVERNANCE_FAILURE',
+      deliverable: false,
+      reason: 'Latest Weekly archive record lacks Report ID or Decision Run ID.',
+      archive: archive
+    };
+  }
+
+  const reportRows = foA240SheetRows_(reportSheet).filter(function(row) {
+    return String(row['Report ID'] || '').trim() === reportId &&
+      String(row['Decision Run ID'] || '').trim() === decisionRunId;
+  });
+
+  if (!reportRows.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'PERSISTENCE_FAILURE',
+      deliverable: false,
+      reason: 'Persisted Weekly report rows were not found for the latest archive identity.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      archive: archive
+    };
+  }
+
+  const validationRows = foA240SheetRows_(validationSheet).filter(function(row) {
+    return String(row['Report ID'] || '').trim() === reportId &&
+      String(row['Decision Run ID'] || '').trim() === decisionRunId;
+  });
+
+  if (!validationRows.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'VALIDATION_FAILURE',
+      deliverable: false,
+      reason: 'No persisted Weekly validation lineage matches the latest archived report.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      archive: archive,
+      rows: reportRows
+    };
+  }
+
+  const validationRunIds = Array.from(
+    new Set(validationRows.map(function(row) {
+      return String(row['Validation Run ID'] || '').trim();
+    }).filter(Boolean))
+  );
+
+  if (validationRunIds.length !== 1) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'GOVERNANCE_FAILURE',
+      deliverable: false,
+      reason: 'Weekly validation lineage resolves to multiple Validation Run IDs.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      validationRunIds: validationRunIds,
+      archive: archive
+    };
+  }
+
+  const failedValidation = validationRows.filter(function(row) {
+    return String(row['Status'] || '').trim().toUpperCase() !== 'PASS';
+  });
+
+  if (archiveValidationStatus !== 'PASS' || failedValidation.length) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'VALIDATION_FAILURE',
+      deliverable: false,
+      reason: 'Latest persisted Weekly report has blocking or non-PASS validation evidence.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      validationRunId: validationRunIds[0],
+      archiveValidationStatus: archiveValidationStatus,
+      failedValidation: failedValidation,
+      archive: archive,
+      rows: reportRows,
+      validation: validationRows
+    };
+  }
+
+  const reportLineageMismatch = reportRows.some(function(row) {
+    return String(row['Report ID'] || '').trim() !== reportId ||
+      String(row['Decision Run ID'] || '').trim() !== decisionRunId;
+  });
+
+  if (reportLineageMismatch) {
+    return {
+      status: 'FAIL',
+      deliveryStatus: 'GOVERNANCE_FAILURE',
+      deliverable: false,
+      reason: 'Weekly report-row lineage does not match the latest archive identity.',
+      reportId: reportId,
+      decisionRunId: decisionRunId,
+      archive: archive
+    };
+  }
+
+  return {
+    status: 'PASS',
+    deliveryStatus: 'DELIVERABLE',
+    deliverable: true,
+
+    reportId: reportId,
+    decisionRunId: decisionRunId,
+    validationRunId: validationRunIds[0],
+
+    validationStatus: 'PASS',
+    platformVersion: archive['Platform Version'] || '',
+    baseline: archive['Baseline'] || '',
+
+    archive: archive,
+    rows: reportRows,
+    validation: validationRows,
+
+    reportRowCount: reportRows.length,
+    validationControlCount: validationRows.length,
+
+    reason: 'Latest persisted Weekly CIO report passed governed retrieval and lineage verification.'
+  };
+}
+
+function foGetLatestGovernedWeeklyReportA240Clasp() {
+  const result = foGetLatestGovernedWeeklyReportA240();
+
+  return JSON.stringify({
+    status: result.status || '',
+    deliveryStatus: result.deliveryStatus || '',
+    deliverable: result.deliverable === true,
+    reportId: result.reportId || '',
+    decisionRunId: result.decisionRunId || '',
+    validationRunId: result.validationRunId || '',
+    validationStatus: result.validationStatus || '',
+    platformVersion: result.platformVersion || '',
+    baseline: result.baseline || '',
+    reportRowCount: Number(result.reportRowCount || 0),
+    validationControlCount: Number(result.validationControlCount || 0),
+    reason: result.reason || ''
+  });
+}
+
 function foRunWeeklyCioReportA240Clasp() {
   const result = foRunWeeklyCioReportA240();
 
@@ -1597,6 +1794,8 @@ function foRunWeeklyCioReportValidationA240(
     result.controls.map(function(control) {
       return [
         validationRun.runId,
+        expectedReportId,
+        expectedDecisionRunId,
         validationRun.timestamp,
         control.category,
         control.control,

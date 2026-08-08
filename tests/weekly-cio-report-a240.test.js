@@ -162,6 +162,116 @@ describe('foA240ReadConcentrationTrend_', () => {
 });
 
 
+
+
+
+describe('R7.7.D failure classification', () => {
+  test('retrieval contract exposes governed failure classes and never reconstructs', () => {
+    const weekly = read('WeeklyCioReportA240.js');
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'DATA_ACCESS_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'PERSISTENCE_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'VALIDATION_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'GOVERNANCE_FAILURE'"
+    );
+
+    expect(weekly).toContain(
+      "deliveryStatus: 'DELIVERABLE'"
+    );
+
+    expect(weekly).toContain(
+      'No persisted Weekly CIO archive record is available.'
+    );
+
+    expect(weekly).toContain(
+      'Persisted Weekly report rows were not found for the latest archive identity.'
+    );
+
+    expect(weekly).toContain(
+      'No persisted Weekly validation lineage matches the latest archived report.'
+    );
+
+    expect(weekly).toContain(
+      'Weekly validation lineage resolves to multiple Validation Run IDs.'
+    );
+
+    expect(weekly).toContain(
+      'Latest persisted Weekly report has blocking or non-PASS validation evidence.'
+    );
+
+    expect(weekly).toContain(
+      'Weekly report-row lineage does not match the latest archive identity.'
+    );
+
+    expect(weekly).not.toContain(
+      'reconstructWeeklyReport'
+    );
+
+    expect(weekly).not.toContain(
+      'fallbackGeneratedReport'
+    );
+  });
+});
+
+describe('R7.7.C governed retrieval API', () => {
+  test('retrieval is archive-led and verifies persisted report and validation lineage', () => {
+    const weekly = read('WeeklyCioReportA240.js');
+
+    expect(weekly).toContain(
+      'function foGetLatestGovernedWeeklyReportA240()'
+    );
+    expect(weekly).toContain(
+      "const archive = archiveRows[archiveRows.length - 1]"
+    );
+    expect(weekly).toContain(
+      "row['Report ID']"
+    );
+    expect(weekly).toContain(
+      "row['Decision Run ID']"
+    );
+    expect(weekly).toContain(
+      "row['Validation Run ID']"
+    );
+    expect(weekly).toContain(
+      "deliveryStatus: 'DELIVERABLE'"
+    );
+    expect(weekly).toContain(
+      "deliveryStatus: 'VALIDATION_FAILURE'"
+    );
+    expect(weekly).toContain(
+      "deliveryStatus: 'GOVERNANCE_FAILURE'"
+    );
+  });
+});
+
+describe('R7.7 validation lineage persistence', () => {
+  test('Weekly validation schema persists report and decision lineage', () => {
+    const schemas = read('WorksheetSchemaRegistryA230.js');
+    const weekly = read('WeeklyCioReportA240.js');
+
+    expect(schemas).toContain(
+      "schemaVersion:'1.1',headers:Object.freeze(['Validation Run ID','Report ID','Decision Run ID','Timestamp'"
+    );
+
+    expect(weekly).toContain('expectedReportId');
+    expect(weekly).toContain('expectedDecisionRunId');
+
+    expect(weekly).toContain(
+      "validationRun.runId,\n        expectedReportId,\n        expectedDecisionRunId,\n        validationRun.timestamp"
+    );
+  });
+});
+
 describe('R7.5 decision history comparison', () => {
   test('uses compatible prior recommendation and marks unchanged', () => {
     const current = 'WATCH';
