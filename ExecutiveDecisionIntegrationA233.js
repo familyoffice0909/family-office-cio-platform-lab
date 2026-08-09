@@ -92,7 +92,9 @@ function foA233ReadRiskState_(dashboard) {
   const largest = ranked[0] || {};
   const riskScore = foA233Number_(portfolioRow['Risk Score']);
   const largestPct = foA233Number_(
-    portfolioRow['Largest Position %']
+    largest['Portfolio Weight %'] !== undefined
+      ? largest['Portfolio Weight %']
+      : largest['Portfolio Weight']
   );
   const topFivePct = foA233Number_(portfolioRow['Top 5 %']);
   const riskLevel = foA233Text_(

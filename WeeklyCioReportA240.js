@@ -200,6 +200,9 @@ function foRunWeeklyCioReportA240(options) {
     run
   );
 
+  const previousReportRows =
+    foA240SheetRows_(reportSheet);
+
   foReplaceRowsA230(reportSheet, model.rows);
   foA240FormatReportSheet_(reportSheet);
   SpreadsheetApp.flush();
@@ -217,9 +220,19 @@ function foRunWeeklyCioReportA240(options) {
     : 'ANALYSIS ONLY';
 
   if (persistenceStatus === 'PERSISTED') {
-    foAppendRowsA230(archiveSheet, [
-      foA240ArchiveRow_(model, validation, run)
-    ]);
+
+    foAppendRowsA230(
+      archiveSheet,
+      [foA240ArchiveRow_(model, validation, run)]
+    );
+
+  } else {
+
+    foReplaceRowsA230(
+      reportSheet,
+      previousReportRows
+    );
+
   }
 
   return {
@@ -847,17 +860,26 @@ function foA240BuildModel_(
   const largestTicker = foA240Text_(state['Largest Position Ticker']);
   const largestPct = foA240Number_(state['Largest Position %']);
 
-  const largestPositionPrior =
-    concentrationTrend &&
-    concentrationTrend.status === 'AVAILABLE'
-      ? concentrationTrend.largestPosition.prior
+  const largestPositionPriorRaw =
+    priorArchive &&
+    priorArchive['Report ID']
+      ? priorArchive['Largest Position %']
       : null;
 
+  const largestPositionPrior =
+    largestPositionPriorRaw === '' ||
+    largestPositionPriorRaw === null ||
+    largestPositionPriorRaw === undefined
+      ? null
+      : foA240Number_(largestPositionPriorRaw);
+
   const largestPositionDelta =
-    concentrationTrend &&
-    concentrationTrend.status === 'AVAILABLE'
-      ? concentrationTrend.largestPosition.delta
-      : null;
+    largestPositionPrior === null
+      ? null
+      : foA240NumericDelta_(
+          largestPositionPrior,
+          largestPct
+        );
 
   add(
     'RISK',
@@ -1137,6 +1159,27 @@ function foA240BuildModel_(
     );
   });
 
+  const conflictSummaryStatus = !conflicts.length
+    ? 'CLEAR'
+    : (
+        conflicts.every(function(conflict) {
+          return foA240Text_(
+            conflict.Status
+          ).toUpperCase().indexOf('CONTROLLED') === 0;
+        })
+          ? 'CONTROLLED'
+          : 'OPEN'
+      );
+
+  const conflictSummaryCommentary =
+    conflictSummaryStatus === 'CLEAR'
+      ? 'No A2.3.3 report conflicts were detected.'
+      : (
+          conflictSummaryStatus === 'CONTROLLED'
+            ? 'All reported A2.3.3 conflicts are controlled by governed execution constraints.'
+            : 'One or more A2.3.3 conflicts remain open and require resolution.'
+        );
+
   add(
     'CONFLICT CONTROL',
     conflicts.length ? 'CRITICAL' : 'NORMAL',
@@ -1147,10 +1190,8 @@ function foA240BuildModel_(
       priorArchive['Conflict Count'],
       conflicts.length
     ),
-    conflicts.length ? 'OPEN' : 'CLEAR',
-    conflicts.length
-      ? 'Open conflicts are listed below and must remain controlled.'
-      : 'No A2.3.3 report conflicts were detected.',
+    conflictSummaryStatus,
+    conflictSummaryCommentary,
     'Report Conflicts A233'
   );
   conflicts.forEach(function(conflict) {
@@ -1774,17 +1815,33 @@ function foRunWeeklyCioReportValidationA240(
   suite.add('PRESENTATION',
     'Report contains no implausible portfolio percentages', function() {
       return foA240SheetRows_(reportSheet).every(function(row) {
-        if (row.Section !== 'CURRENT HOLDING ACTION' &&
-            row['Metric / Ticker'] !== 'Largest Position') {
+        if (row['Metric / Ticker'] === 'Largest Position') {
+          const match = foA240Text_(
+            row['Current Value / Action']
+          ).match(/-?[0-9]+(?:\.[0-9]+)?%/);
+
+          if (!match) return false;
+
+          const value = Number(
+            match[0].replace('%', '')
+          );
+
+          return Number.isFinite(value) &&
+            value >= 0 &&
+            value <= 100;
+        }
+
+        if (row.Section !== 'CURRENT HOLDING ACTION') {
           return true;
         }
-        const text = foA240Text_(row['Current Value / Action']) + ' ' +
-          foA240Text_(row['Evidence / Commentary']);
-        const matches = text.match(/-?[0-9]+(?:\.[0-9]+)?%/g) || [];
-        return matches.every(function(token) {
-          const value = Number(token.replace('%', ''));
-          return Number.isFinite(value) && value >= 0 && value <= 100;
-        });
+
+        const weight = foA240ExtractPortfolioWeight_(
+          row['Evidence / Commentary']
+        );
+
+        return Number.isFinite(weight) &&
+          weight >= 0 &&
+          weight <= 100;
       });
     }, 'CRITICAL');
 
@@ -3303,9 +3360,10 @@ function foA240ResolveWeeklyComparisonEligibility_(
     index < coverageMetricNames.length;
     index++
   ) {
-    const candidate = foA240MetricValue_(
+    const candidate = foA240FirstMetricValue_(
+      returnMetrics,
       coverageMetrics,
-      coverageMetricNames[index]
+      [coverageMetricNames[index]]
     );
 
     if (
@@ -3320,11 +3378,11 @@ function foA240ResolveWeeklyComparisonEligibility_(
 
   if (
     coverageValue === null &&
-    coverageMetrics &&
-    coverageMetrics.metrics
+    returnMetrics &&
+    returnMetrics.metrics
   ) {
     const metricKeys = Object.keys(
-      coverageMetrics.metrics
+      returnMetrics.metrics
     );
 
     for (
@@ -3339,7 +3397,7 @@ function foA240ResolveWeeklyComparisonEligibility_(
         /coverage/i.test(key)
       ) {
         coverageValue = foA240Number_(
-          coverageMetrics.metrics[key].value
+          returnMetrics.metrics[key].value
         );
         break;
       }
