@@ -1018,3 +1018,159 @@ describe('R4.1 D3 Weekly Strategy Review Runtime Context integration', () => {
     expect(runtimeIndex).toBeGreaterThan(entryIndex);
   });
 });
+
+describe('v3.4.2 A232 return coverage authority', () => {
+  let weeklyContext;
+
+  beforeAll(() => {
+    weeklyContext = vm.createContext({ console });
+
+    vm.runInContext(
+      read('WeeklyCioReportA240.js'),
+      weeklyContext,
+      { filename: 'WeeklyCioReportA240.js' }
+    );
+  });
+
+  test('comparison eligibility consumes Return Attribution Coverage from A232', () => {
+    const returnMetrics = {
+      runId: 'RETURN-TEST',
+      timestamp: '2026-08-08T15:00:00Z',
+      platformVersion: 'v3.4.0',
+      baseline: 'CB-002',
+      metrics: {
+        'Return Attribution Coverage %': {
+          value: 1,
+          status: 'READY',
+          commentary: ''
+        }
+      }
+    };
+
+    const coverageMetrics = {
+      runId: 'COVERAGE-TEST',
+      timestamp: '2026-08-08T15:00:00Z',
+      platformVersion: 'v3.4.0',
+      baseline: 'CB-002',
+      metrics: {
+        'Cost-Basis Coverage %': {
+          value: 1,
+          status: 'STRONG',
+          commentary: ''
+        }
+      }
+    };
+
+    const result =
+      weeklyContext.foA240ResolveWeeklyComparisonEligibility_(
+        returnMetrics,
+        coverageMetrics
+      );
+
+    expect(result.coverage).toBe(1);
+    expect(result.reason).not.toBe(
+      'Return-attribution coverage is unavailable.'
+    );
+  });
+});
+
+describe('v3.4.2 Weekly largest-position comparison authority', () => {
+  test('largest-position prior and delta use the compatible Weekly archive', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "priorArchive['Largest Position %']"
+    );
+
+    expect(source).toContain(
+      "foA240NumericDelta_(\n          largestPositionPrior,\n          largestPct"
+    );
+
+    expect(source).not.toContain(
+      "concentrationTrend.largestPosition.prior"
+    );
+
+    expect(source).not.toContain(
+      "concentrationTrend.largestPosition.delta"
+    );
+  });
+
+  test('largest-position comparison is suppressed when no prior Weekly baseline exists', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "priorArchive &&\n    priorArchive['Report ID']"
+    );
+
+    expect(source).toContain(
+      "largestPositionPrior === null"
+    );
+  });
+});
+
+describe('v3.4.3 portfolio percentage validation scope', () => {
+  test('validation inspects portfolio weights instead of every percentage token in commentary', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      'foA240ExtractPortfolioWeight_('
+    );
+
+    expect(source).not.toContain(
+      "const text = foA240Text_(row['Current Value / Action']) + ' ' +"
+    );
+  });
+
+  test('largest-position percentage remains bounded from zero to one hundred', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "row['Metric / Ticker'] === 'Largest Position'"
+    );
+
+    expect(source).toContain('value >= 0 &&');
+    expect(source).toContain('value <= 100');
+  });
+});
+
+describe('v3.4.3 governed conflict summary status', () => {
+  test('controlled A233 conflicts are not presented as OPEN by Weekly', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "conflictSummaryStatus"
+    );
+
+    expect(source).toContain(
+      ".toUpperCase().indexOf('CONTROLLED') === 0"
+    );
+
+    expect(source).toContain(
+      "? 'CONTROLLED'"
+    );
+
+    expect(source).not.toContain(
+      "conflicts.length ? 'OPEN' : 'CLEAR'"
+    );
+  });
+
+  test('Weekly preserves OPEN whenever any conflict is not governed as CONTROLLED', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      ": 'OPEN'"
+    );
+
+    expect(source).toContain(
+      "One or more A2.3.3 conflicts remain open and require resolution."
+    );
+  });
+
+  test('controlled conflict commentary reflects execution governance', () => {
+    const source = read('WeeklyCioReportA240.js');
+
+    expect(source).toContain(
+      "All reported A2.3.3 conflicts are controlled by governed execution constraints."
+    );
+  });
+});
