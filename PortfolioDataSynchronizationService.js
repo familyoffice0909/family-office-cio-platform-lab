@@ -365,7 +365,7 @@ function foApplySynchronizedValuationEvidence_(row, headers, sourceName) {
   const marketBasisIndex = headers.indexOf('Market Value Basis');
 
   if (price > 0) {
-    if (timestampIndex >= 0 && !row[timestampIndex]) row[timestampIndex] = new Date();
+    if (timestampIndex >= 0) row[timestampIndex] = new Date();
     if (sourceIndex >= 0 && !row[sourceIndex]) row[sourceIndex] = sourceName;
     if (statusIndex >= 0) row[statusIndex] = 'SOURCE_REPORTED';
     if (basisIndex >= 0) row[basisIndex] = 'SOURCE_REPORTED';

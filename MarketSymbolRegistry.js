@@ -11,7 +11,7 @@ const FO_MARKET_SYMBOLS = {
   ABX:  { providerSymbol: 'TSE:ABX', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
   ONE:  { providerSymbol: 'CVE:ONE', exchange: 'TSX', currency: 'CAD', status: 'ACTIVE' },
 
-  QBTS: { providerSymbol: 'NYSE:QBTS', currency: 'USD', exchange: 'NYSE', status: 'ACTIVE' },
+  QBTS: { providerSymbol: 'NASDAQ:QBTS', currency: 'USD', exchange: 'NASDAQ', status: 'ACTIVE' },
   RGTI: { providerSymbol: 'NASDAQ:RGTI', currency: 'USD', exchange: 'NASDAQ', status: 'ACTIVE' },
   MU:   { providerSymbol: 'NASDAQ:MU', currency: 'USD', exchange: 'NASDAQ', status: 'ACTIVE' },
   AVGO: { providerSymbol: 'NASDAQ:AVGO', currency: 'USD', exchange: 'NASDAQ', status: 'ACTIVE' },
