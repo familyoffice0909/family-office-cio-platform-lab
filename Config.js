@@ -4,7 +4,7 @@ const FO_CONFIG = {
   RELEASE_NAME: 'R8.3 Executive Evidence Service',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.08.08.v340-r83',
+  BUILD: '2026.08.10.v344-r83',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
