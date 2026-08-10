@@ -1,6 +1,6 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.4.0',
+  PLATFORM_VERSION: 'v3.4.4',
   RELEASE_NAME: 'R8.3 Executive Evidence Service',
 
   BASELINE: 'CB-002',
