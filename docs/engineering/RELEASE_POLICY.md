@@ -90,3 +90,25 @@ Emergency status may shorten elapsed time but not eliminate commit traceability,
 ## Release frequency and support
 
 Release when a coherent wave is certified; do not batch unrelated risk solely for calendar convenience. Each production release has a named support owner and observation window proportionate to risk. During the window, monitor execution failures, data readiness, reconciliation, duplicate events, trigger health, and executive outputs.
+
+## Lab / Production Apps Script Target Separation
+
+The Lab and Production repositories intentionally maintain different
+`.clasp.json` deployment targets.
+
+- `family-office-cio-platform-lab` must point only to the designated
+  Lab Apps Script project.
+- `family-office-cio-platform` must retain the designated Production
+  Apps Script project.
+- `.clasp.json` is therefore an approved environment-specific divergence
+  between the Lab and Production repositories.
+- Exact-commit production promotion must never overwrite the Production
+  `.clasp.json` with the Lab `.clasp.json`.
+- Any production promotion procedure must explicitly preserve and verify
+  the Production Script ID before deployment.
+- A Lab `clasp push` must never target the Production Apps Script project.
+
+This divergence is intentional, permanent, and required by the
+Deployment Environment Separation control established after
+`GOVERNANCE-GAP-2026-08-08` and
+`LAB-ISOLATION-MISCONFIGURATION-2026-08-09`.
