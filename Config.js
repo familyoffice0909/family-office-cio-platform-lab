@@ -1,16 +1,16 @@
 const FO_CONFIG = {
   PLATFORM_NAME: 'Family Office CIO Platform',
-  PLATFORM_VERSION: 'v3.4.0',
+  PLATFORM_VERSION: 'v3.4.4',
   RELEASE_NAME: 'R8.3 Executive Evidence Service',
 
   BASELINE: 'CB-002',
-  BUILD: '2026.08.08.v340-r83',
+  BUILD: '2026.08.10.v344-r83',
   get ENVIRONMENT() {
     return foGetRuntimeEnvironment_();
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.4.0',
+  ENGINE_VERSION: 'v3.4.4',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
