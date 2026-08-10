@@ -10,7 +10,7 @@ const FO_CONFIG = {
   },
 
   ENGINE_NAME: 'Family Office CIO Orchestrator',
-  ENGINE_VERSION: 'v3.4.0',
+  ENGINE_VERSION: 'v3.4.4',
 
   get LEDGER_SPREADSHEET_ID() {
     return foGetRuntimeLedgerSpreadsheetId_();
