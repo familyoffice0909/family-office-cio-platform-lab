@@ -85,30 +85,9 @@ still merit review as a separate, minor item.
 3. Branch `fix/price-timestamp-freshness` (779966c) is now fully merged
    and superseded on origin - stale, safe to delete.
 
-## Anomaly investigated and cleared — "Environment status: LAB" label
-
-A ChatGPT-run Weekly report retrieval this session displayed genuine,
-correct production content (WEEKLY-CIO-20260809-095357) alongside a
-field reading "Environment status: LAB" - not present in any earlier
-retrieval of the same report tonight. Investigated as a potential
-recurrence of the Aug 9 misconfiguration pattern.
-
-Cleared: the platform's actual retrieval function
-(foGetLatestGovernedWeeklyReportA240Clasp) returns no "environment" key
-in its payload - the field cannot have originated from governed report
-output. Confirmed via source search across production and both Lab repo
-branches (no literal match anywhere). Confirmed Lab v2's Script
-Properties correctly point at Lab workbooks, not production. Confirmed
-zero unaccounted executions on either Apps Script project today - only
-this session's own refresh/sync/refresh sequence on production, and
-this session's own fixture/test work on Lab.
-
-Most likely explanation: self-reported narration by whatever tool
-executed the retrieval, not a platform signal. Not fully provable from
-available logs. No evidence of misdirected data access, no evidence of
-a repeat Aug 9-style misconfiguration. Recorded here as a documented,
-cleared anomaly - not escalated to a separate incident record, since no
-unintended platform behavior or data exposure was found.
+## Anomaly investigated — "Environment status: LAB" label
+Cleared as a platform concern and escalated to its own incident record:
+see `docs/incidents/CHATGPT-DELIVERY-METADATA-FABRICATION-2026-08-10.md`.
 
 ## Status
 G CLOSED. v3.4.4 certified in production, verified independently on
