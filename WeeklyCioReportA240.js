@@ -200,8 +200,14 @@ function foRunWeeklyCioReportA240(options) {
     run
   );
 
+  const previousReportHeaders =
+    foGetHeadersA230('WEEKLY_CIO_REPORT_A240');
   const previousReportRows =
-    foA240SheetRows_(reportSheet);
+    foA240SheetRows_(reportSheet).map(function(row) {
+      return previousReportHeaders.map(function(header) {
+        return row[header];
+      });
+    });
 
   foReplaceRowsA230(reportSheet, model.rows);
   foA240FormatReportSheet_(reportSheet);
