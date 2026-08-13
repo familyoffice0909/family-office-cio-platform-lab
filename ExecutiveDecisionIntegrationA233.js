@@ -86,10 +86,16 @@ function foA233ReadRiskState_(dashboard) {
     dashboard.getSheetByName(FO_SHEETS.POSITION_RISK)
   );
   const portfolioRow = portfolio.rows[0] || {};
-  const ranked = positions.rows.slice().sort(function(a, b) {
-    return foA233Number_(a.Rank) - foA233Number_(b.Rank);
+  const byWeightDesc = positions.rows.slice().sort(function(a, b) {
+    var weightA = foA233Number_(
+      a['Portfolio Weight %'] !== undefined ? a['Portfolio Weight %'] : a['Portfolio Weight']
+    );
+    var weightB = foA233Number_(
+      b['Portfolio Weight %'] !== undefined ? b['Portfolio Weight %'] : b['Portfolio Weight']
+    );
+    return weightB - weightA;
   });
-  const largest = ranked[0] || {};
+  const largest = byWeightDesc[0] || {};
   const riskScore = foA233Number_(portfolioRow['Risk Score']);
   const largestPct = foA233Number_(
     largest['Portfolio Weight %'] !== undefined
