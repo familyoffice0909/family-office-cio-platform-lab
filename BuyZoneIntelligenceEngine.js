@@ -633,7 +633,7 @@ function foDetermineBuyZoneRecommendation_(input) {
 
   if (
     input.portfolioWeight >=
-    (input.rules.MAX_POSITION_WEIGHT || 0.15)
+    (input.rules.MAX_POSITION_WEIGHT || 0.15) * 100
   ) {
     return 'DO NOT ADD';
   }
@@ -720,7 +720,7 @@ function foBuildBuyZoneRationale_(input) {
 
   if (
     input.portfolioWeight >=
-    (input.rules.MAX_POSITION_WEIGHT || 0.15)
+    (input.rules.MAX_POSITION_WEIGHT || 0.15) * 100
   ) {
     reasons.push('Position concentration blocks additional capital');
   }
