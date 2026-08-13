@@ -356,6 +356,13 @@ function foBuildBuyZoneResults_(
 
   const results = [];
 
+  let totalMarketValue = 0;
+  for (let i = 1; i < values.length; i++) {
+    totalMarketValue += foBuyZoneNumber_(
+      foGetVal_(values[i], headers, 'Market Value')
+    );
+  }
+
   for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
     const row = values[rowIndex];
 
@@ -391,9 +398,9 @@ function foBuildBuyZoneResults_(
       foGetVal_(row, headers, 'Market Value')
     );
 
-    const portfolioWeight = foBuyZoneNumber_(
-      foGetVal_(row, headers, 'Portfolio Weight')
-    );
+    const portfolioWeight = totalMarketValue > 0
+      ? (marketValue / totalMarketValue * 100)
+      : 0;
 
     const dataQualityScore =
       foBuyZoneNumber_(foGetVal_(row, headers, 'Data Quality Score')) ||
