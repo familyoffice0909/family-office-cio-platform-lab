@@ -233,7 +233,7 @@ function foConvictionFreshnessScore_(priceFreshness) {
 }
 
 function foConvictionCapacityScore_(weight, maxWeight) {
-  const limit = maxWeight || 0.15;
+  const limit = (maxWeight || 0.15) * 100;
   const positionWeight = Number(weight) || 0;
 
   if (positionWeight <= 0) return 100;
@@ -260,7 +260,7 @@ function foRiskPriceScore_(priceFreshness) {
 }
 
 function foRiskConcentrationScore_(weight, maxWeight) {
-  const limit = maxWeight || 0.15;
+  const limit = (maxWeight || 0.15) * 100;
   const positionWeight = Number(weight) || 0;
 
   if (positionWeight <= 0) return 5;
