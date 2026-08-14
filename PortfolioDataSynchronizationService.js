@@ -274,11 +274,6 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
       'Name',
       'Security'
     ]);
-    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Current Price', [
-      'Current Price',
-      'Native Price',
-      'Price'
-    ]);
     foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Market Value', [
       'Market Value',
       'Market Value CAD'
