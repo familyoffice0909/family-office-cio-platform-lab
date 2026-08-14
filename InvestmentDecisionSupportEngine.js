@@ -205,6 +205,7 @@ function foBuildDecisionRecord_(
   return {
     ticker: item.ticker,
     account: item.account,
+    portfolioWeight: item.portfolioWeight,
     action: action,
     recommendation: item.recommendation,
     allocationBand: allocationBand,
@@ -938,6 +939,7 @@ function foDecisionSupportHeaders_() {
     'Rank',
     'Ticker',
     'Account',
+    'Portfolio Weight',
     'Action',
     'Recommendation',
     'Allocation Band',
@@ -1007,6 +1009,7 @@ function foWriteDecisionSupport_(dashboard, decisions) {
       index + 1,
       item.ticker,
       item.account,
+      item.portfolioWeight,
       item.action,
       item.recommendation,
       item.allocationBand,
