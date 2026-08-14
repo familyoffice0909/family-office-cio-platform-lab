@@ -58,7 +58,7 @@ The Production Operator verifies the repository, branch, commit, Apps Script pro
 
 ### 8. Post-deployment validation and closure
 
-Run platform health, integrity, modular smoke, applicable engine/orchestrator checks, schema validation, and executive-output review. Confirm version/baseline/commit lineage, triggers, logs, and absence of unintended writes. Record outcome and close only when the release is operationally accepted.
+Run platform health, integrity, modular smoke, applicable engine/orchestrator checks, schema validation, and executive-output review. Confirm version/baseline/commit lineage, triggers, logs, and absence of unintended writes. Record outcome and close only when the release is operationally accepted. Where the release used a production/main-rooted branch, closure also requires the back-merge verified under "Develop/Production sync requirement".
 
 ## Required release evidence
 
@@ -78,6 +78,20 @@ Run platform health, integrity, modular smoke, applicable engine/orchestrator ch
 - Schema changes are backward-compatible or have an approved migration and rollback.
 - A release with failed controls, inconsistent evidence, an unknown target, or unapproved scope does not proceed.
 - Release approval must include a human independent of AI-generated implementation and evidence summaries.
+
+## Develop/Production sync requirement
+
+Any fix promoted via a release branch cut directly from production/main
+(rather than merged to develop first) does NOT automatically reach
+develop. This has caused repeated silent drift (2026-08-13, 2026-08-14
+sessions) requiring manual reconciliation after the fact.
+
+Going forward: after any production/main-rooted release branch is
+merged and deployed, back-merge or cherry-pick the same change into
+develop as an explicit, mandatory step of that release - not a
+follow-up to catch later. Verify via byte-identity comparison of
+changed files against production/main before considering the release
+closed.
 
 ## Rollback and forward recovery
 
