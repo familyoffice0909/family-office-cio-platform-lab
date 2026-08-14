@@ -432,6 +432,25 @@ function foA233BuildConflicts_(actionCards, policy, risk, readiness, run) {
     });
   }
 
+  if (risk.critical && readiness.priceFreshnessCoveragePct < FO_A233_FRESHNESS_THRESHOLD) {
+    conflicts.push({
+      runId: run.runId,
+      timestamp: run.timestamp,
+      conflictCode: 'CRITICAL_RISK_WITH_STALE_EVALUATION',
+      severity: 'CRITICAL',
+      status: 'CONTROLLED — DEPLOYMENT UNEVALUATED',
+      description:
+        'Portfolio risk is critical, but deployment recommendations cannot be evaluated because price data is stale.',
+      evidence:
+        'Risk ' + risk.riskScore +
+        ' | Price Freshness Coverage ' + foA233PercentText_(readiness.priceFreshnessCoveragePct),
+      requiredResolution:
+        'Refresh prices before concluding the portfolio is conflict-free.',
+      platformVersion: run.platformVersion,
+      baseline: run.baseline
+    });
+  }
+
   if (policy.staleActionableCount > 0) {
     conflicts.push({
       runId: run.runId,
