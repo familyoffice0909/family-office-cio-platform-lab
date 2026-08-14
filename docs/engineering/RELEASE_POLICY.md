@@ -58,7 +58,7 @@ The Production Operator verifies the repository, branch, commit, Apps Script pro
 
 ### 8. Post-deployment validation and closure
 
-Run platform health, integrity, modular smoke, applicable engine/orchestrator checks, schema validation, and executive-output review. Confirm version/baseline/commit lineage, triggers, logs, and absence of unintended writes. Record outcome and close only when the release is operationally accepted.
+Run platform health, integrity, modular smoke, applicable engine/orchestrator checks, schema validation, and executive-output review. Confirm version/baseline/commit lineage, triggers, logs, and absence of unintended writes. Record outcome and close only when the release is operationally accepted. Where the release used a production/main-rooted branch, closure also requires the back-merge verified under "Develop/Production sync requirement".
 
 ## Required release evidence
 
