@@ -234,6 +234,7 @@ function foApplyMarketDataToPortfolioMaster_(portfolioSheet, priceMap) {
   const quantityIndex = headers.indexOf('Quantity');
   const priceIndex = headers.indexOf('Current Price');
   const marketValueIndex = headers.indexOf('Market Value');
+  const timestampIndex = headers.indexOf('Price Timestamp');
 
   if (tickerIndex < 0 || priceIndex < 0) {
     throw new Error('Portfolio Master must contain Ticker and Current Price columns.');
@@ -263,6 +264,10 @@ function foApplyMarketDataToPortfolioMaster_(portfolioSheet, priceMap) {
         if (quantity > 0) {
           portfolioSheet.getRange(r + 1, marketValueIndex + 1).setValue(quantity * price);
         }
+      }
+
+      if (timestampIndex >= 0) {
+        portfolioSheet.getRange(r + 1, timestampIndex + 1).setValue(new Date());
       }
     } else {
       missingPrices++;
