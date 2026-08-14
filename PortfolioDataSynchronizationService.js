@@ -274,10 +274,12 @@ function foReadPortfolioHoldingsSource_(dashboard, source, masterHeaders, enrich
       'Name',
       'Security'
     ]);
-    foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Market Value', [
-      'Market Value',
-      'Market Value CAD'
-    ]);
+    const outputPrice = foSynchronizationNumber_(
+      foGetVal_(output, masterHeaders, 'Current Price')
+    );
+    if (quantity > 0 && outputPrice > 0) {
+      foSetHeaderValue_(output, masterHeaders, 'Market Value', quantity * outputPrice);
+    }
     foCopySourceAlias_(output, masterHeaders, sourceRow, headers, 'Asset Class', [
       'Asset Class'
     ]);
