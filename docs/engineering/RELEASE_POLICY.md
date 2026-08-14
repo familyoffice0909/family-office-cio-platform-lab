@@ -79,6 +79,20 @@ Run platform health, integrity, modular smoke, applicable engine/orchestrator ch
 - A release with failed controls, inconsistent evidence, an unknown target, or unapproved scope does not proceed.
 - Release approval must include a human independent of AI-generated implementation and evidence summaries.
 
+## Develop/Production sync requirement
+
+Any fix promoted via a release branch cut directly from production/main
+(rather than merged to develop first) does NOT automatically reach
+develop. This has caused repeated silent drift (2026-08-13, 2026-08-14
+sessions) requiring manual reconciliation after the fact.
+
+Going forward: after any production/main-rooted release branch is
+merged and deployed, back-merge or cherry-pick the same change into
+develop as an explicit, mandatory step of that release - not a
+follow-up to catch later. Verify via byte-identity comparison of
+changed files against production/main before considering the release
+closed.
+
 ## Rollback and forward recovery
 
 Define rollback before deployment. Prefer a reviewed Git revert or a pre-approved forward fix; never rewrite shared history or move a release tag. Restore affected Sheets from controlled backups when code rollback alone is insufficient. Re-deploy from a known-good production commit, rerun post-deploy checks, and preserve the failed release record. A rollback creates a new patch release when production source or deployment changes.
