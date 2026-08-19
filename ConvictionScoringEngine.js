@@ -159,9 +159,21 @@ function foDetermineDynamicRecommendation_(
   convictionScore,
   riskScore,
   priceFreshness,
-  rules
+  rules,
+  portfolioWeight,
+  maxPositionWeight
 ) {
   if (priceFreshness === 'MISSING') return 'HOLD';
+
+  // Concentration is a hard override, not a scoring input: it is checked
+  // before every other rung, so a position over the limit cannot be
+  // rescued by a strong conviction/risk pair. The undefined-guard keeps
+  // callers that omit the trailing arguments behaving exactly as before.
+  if (
+    portfolioWeight !== undefined &&
+    maxPositionWeight !== undefined &&
+    portfolioWeight >= maxPositionWeight * 100
+  ) return 'DO NOT ADD';
 
   if (
     convictionScore <= (rules.AVOID_MAX_CONVICTION || 30) &&

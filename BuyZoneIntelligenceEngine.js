@@ -466,7 +466,9 @@ function foBuildBuyZoneResults_(
       convictionScore,
       riskScore,
       priceFreshness,
-      convictionRules
+      convictionRules,
+      scoringInput.portfolioWeight,
+      scoringInput.maxPositionWeight
     );
 
     const confidence = foCalculateBuyZoneConfidence_(
