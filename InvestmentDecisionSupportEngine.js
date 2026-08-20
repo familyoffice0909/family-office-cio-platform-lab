@@ -271,6 +271,7 @@ function foDecisionAction_(item) {
   if (item.recommendation === 'ACCUMULATE') return 'ACCUMULATE';
   if (item.recommendation === 'AVOID') return 'AVOID';
   if (item.recommendation === 'HOLD') return 'HOLD';
+  if (item.recommendation === 'DO NOT ADD') return 'DO NOT ADD';
   return 'WATCH';
 }
 
@@ -279,7 +280,8 @@ function foDecisionAllocationBand_(item, action) {
     action === 'REFRESH DATA' ||
     action === 'WATCH' ||
     action === 'HOLD' ||
-    action === 'AVOID'
+    action === 'AVOID' ||
+    action === 'DO NOT ADD'
   ) {
     return '0%';
   }
