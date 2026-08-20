@@ -301,6 +301,7 @@ function foBuildBuyZoneExecutiveRows_(results) {
     ['RECOMMENDATIONS', 'WATCH', counts.WATCH, '', now],
     ['RECOMMENDATIONS', 'HOLD', counts.HOLD, '', now],
     ['RECOMMENDATIONS', 'AVOID', counts.AVOID, '', now],
+    ['RECOMMENDATIONS', 'DO NOT ADD', counts['DO NOT ADD'], '', now],
     ['SCORES', 'Average Conviction', averageConviction, '0-100', now],
     ['SCORES', 'Average Risk', averageRisk, '0-100', now],
     [
@@ -430,7 +431,8 @@ function foBuyZoneRecommendationCounts_(results) {
     ACCUMULATE: 0,
     WATCH: 0,
     HOLD: 0,
-    AVOID: 0
+    AVOID: 0,
+    'DO NOT ADD': 0
   };
 
   results.forEach(function(item) {
