@@ -432,6 +432,30 @@ function foA233BuildConflicts_(actionCards, policy, risk, readiness, run) {
     });
   }
 
+  const concentrationBlockedCards = actionCards.filter(function(card) {
+    return card.action === 'DO NOT ADD';
+  });
+
+  if (risk.critical && concentrationBlockedCards.length) {
+    conflicts.push({
+      runId: run.runId,
+      timestamp: run.timestamp,
+      conflictCode: 'CRITICAL_RISK_DRIVEN_BY_CONCENTRATION',
+      severity: 'CRITICAL',
+      status: 'CONTROLLED — CAPITAL BLOCKED',
+      description:
+        'Portfolio risk is critical, and at least one position is currently blocked from additional capital due to concentration.',
+      evidence:
+        'Risk ' + risk.riskScore +
+        ' | Concentration-blocked positions: ' +
+        concentrationBlockedCards.map(function(c) { return c.ticker; }).join(', '),
+      requiredResolution:
+        'Reduce concentration in the affected position(s) or explicitly approve risk capacity.',
+      platformVersion: run.platformVersion,
+      baseline: run.baseline
+    });
+  }
+
   if (risk.critical && readiness.priceFreshnessCoveragePct < FO_A233_FRESHNESS_THRESHOLD) {
     conflicts.push({
       runId: run.runId,
