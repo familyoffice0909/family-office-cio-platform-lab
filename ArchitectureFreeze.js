@@ -250,8 +250,8 @@ function foGenerateProductionBaseline() {
     critical,
     certification,
     'FROZEN WITH GOVERNED ADDITIVE CHANGE',
+    FO_CONFIG.BUILD,
     'PENDING RELEASE',
-    'v1.0.1-production-certified',
     'A2.1.6 architecture baseline generated from live workbook.'
   ]];
 
