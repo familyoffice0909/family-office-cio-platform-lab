@@ -126,3 +126,72 @@ This divergence is intentional, permanent, and required by the
 Deployment Environment Separation control established after
 `GOVERNANCE-GAP-2026-08-08` and
 `LAB-ISOLATION-MISCONFIGURATION-2026-08-09`.
+
+## Lab / Production Version File Divergence
+
+The Lab and Production repositories intentionally carry different
+version metadata, for the same class of reason that `.clasp.json`
+diverges.
+
+- `family-office-cio-platform-lab` (`develop`) and
+  `family-office-cio-platform` (`main`) will permanently hold different
+  `PLATFORM_VERSION`, `ENGINE_VERSION`, `BUILD`, and package version
+  values.
+- `Config.js`, `package.json`, and `package-lock.json` are therefore an
+  approved environment-specific divergence between the two
+  repositories.
+
+Verified state on 2026-08-21:
+
+| Field | `develop` | `production/main` |
+| --- | --- | --- |
+| `Config.js` `PLATFORM_VERSION` | `v3.4.0` | `v3.4.4` |
+| `Config.js` `ENGINE_VERSION` | `v3.4.0` | `v3.4.4` |
+| `Config.js` `BUILD` | `2026.08.08.v340-r83` | `2026.08.10.v344-r83` |
+| `package.json` `version` | `3.4.0` | `3.4.4` |
+
+### Why the divergence exists
+
+Fixes are promoted by cutting a release branch from `production/main`
+and cherry-picking only the specific source and test files, deliberately
+excluding version files. Production's version block is therefore bumped
+only by an explicit version release, never as a side effect of a fix
+promotion.
+
+This exists to prevent the inverse failure. Merging `develop` wholesale
+into `production/main` would carry develop's older version block into
+production and silently regress the deployed `PLATFORM_VERSION`,
+`ENGINE_VERSION`, `BUILD`, and package version.
+
+### Operational rules
+
+- Never merge `develop` wholesale into `production/main`.
+- Never cherry-pick `Config.js`, `package.json`, or `package-lock.json`
+  into a production-rooted release branch unless the intent is
+  deliberately to bump production's version.
+- After every back-merge to `develop`, verify these files still differ.
+  A back-merge that makes them agree has dragged version state across
+  and must be corrected before the release is closed.
+- `FO_CONFIG` values are resolved at execution time by the Apps Script
+  project that runs the code. An engine that records build or version
+  metadata reports the running environment's own values, not those of
+  the repository in which the change was authored.
+
+### Relationship to existing integrity controls
+
+`scripts/validate-platform.js` enforces version agreement **within a
+single repository**: `package.json`, `package-lock.json`, and
+`Config.js` `PLATFORM_VERSION` must match one another. It does not
+compare across repositories. Both repositories pass it independently
+(verified 2026-08-21), so this divergence violates no standing control.
+
+`docs/validation/R1.3.0.1-REPOSITORY-INTEGRITY.md` records a past wave
+that reconciled the same three files. That is a historical record of an
+intra-repository reconciliation, not a standing cross-repository
+requirement, and it does not conflict with this section.
+
+No control or document asserted a cross-repository version expectation
+before this one. The gap this section closes is an absence, not a
+contradiction: the divergence was load-bearing but unwritten until
+2026-08-21, when a promotion review rediscovered it from first
+principles rather than from documentation.
